@@ -479,7 +479,7 @@ function openModal(dataset, row, datasetKey, origIdx) {
   // Éditable si la ligne existe dans le dataset original et n'est pas calculée
   const isEditable = !!datasetKey && origIdx >= 0 && !row.computed;
   const editableTypes = new Set(['text', 'price', 'number', 'link']);
-  const multilineKeys = new Set(['becarefull', 'commentaire', 'remarque', 'note']);
+  const multilineKeys = new Set(['avertissement', 'commentaire', 'remarque', 'note']);
 
   let html = '';
   dataset.columns.forEach(col => {
@@ -587,6 +587,21 @@ function closeModal() {
 /* ════════════════════════════════════════════════════════════
    PAGE RÉSUMÉ — CARTES DE SYNTHÈSE
 ════════════════════════════════════════════════════════════ */
+
+/** Construit un bouton "?" avec tooltip au survol */
+function buildTooltip(items) {
+  if (!items.length) return '';
+  const rows = items.map(({ label, price }) => `
+    <div class="sc-tooltip-row">
+      <span class="sc-tooltip-name">${escHtml(label)}</span>
+      <span class="sc-tooltip-price">${price != null ? fmtPrice(price) : '—'}</span>
+    </div>`).join('');
+  return `<div class="sc-info">
+    <button class="sc-info-btn" tabindex="-1" aria-label="Détail">?</button>
+    <div class="sc-tooltip" role="tooltip">${rows}</div>
+  </div>`;
+}
+
 function renderSummary() {
   // TTC → HT (TVA 20 %)
   const toHT = v => (parseFloat(v) || 0) / 1.2;
@@ -596,31 +611,14 @@ function renderSummary() {
   const investPhotobooths = state.photoboothUnits.reduce(
     (s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
   const investTotal  = investChateaux + investPhotobooths;
-  const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
-  const coutParLoc   = DATA.fraisRecurrent.totalCoutParLoc;
-  const nbChateaux   = state.chateauUnits.length;
+  const fraisInitTTC  = DATA.fraisInitiaux.totalPrixTTC;
+  const nbChateaux    = state.chateauUnits.length;
   const nbPhotobooths = state.photoboothUnits.length;
 
   const equipLabel = [
     nbChateaux   ? `${nbChateaux} château${nbChateaux > 1 ? 'x' : ''}`       : '',
     nbPhotobooths ? `${nbPhotobooths} photobooth${nbPhotobooths > 1 ? 's' : ''}` : ''
   ].filter(Boolean).join(', ') || 'aucun équipement';
-
-  // ── Tooltip helper ──────────────────────────────────────────
-  const fmtHT = v => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }).format(v);
-
-  function buildTooltip(items) {
-    if (!items.length) return '';
-    const rows = items.map(({ label, price }) => `
-      <div class="sc-tooltip-row">
-        <span class="sc-tooltip-name">${escHtml(label)}</span>
-        <span class="sc-tooltip-price">${price !== null && price !== undefined ? fmtHT(price) : '—'}</span>
-      </div>`).join('');
-    return `<div class="sc-info">
-      <button class="sc-info-btn" tabindex="-1" aria-label="Détail">?</button>
-      <div class="sc-tooltip" role="tooltip">${rows}</div>
-    </div>`;
-  }
 
   // ── Tooltips fixes ───────────────────────────────────────────
   const tooltipFraisInit = buildTooltip(
@@ -797,76 +795,49 @@ function getUnitInvest(unit) {
   return (parseFloat(unit.prixAchat) || 0) + (parseFloat(unit.prixLivraison) || 0);
 }
 
-/** Calcule les stats de rentabilité d'une unité */
-function calcUnitStats(unit) {
-  const coutParLoc  = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
-  const prixLoc     = parseFloat(unit.prixLocation)  || 0;
-  const nbMois      = parseFloat(unit.locationsMois) || 0;
-  const invest      = getUnitInvest(unit);
-  const marge       = prixLoc - coutParLoc;
-  const caMensuel   = prixLoc * nbMois;
-  const caAnnuel    = caMensuel * 12;
-  const chargesVar  = coutParLoc * nbMois * 12;
-  const seuilLocs   = marge > 0 ? Math.ceil(invest / marge) : Infinity;
-  return { marge, caMensuel, caAnnuel, chargesVar, invest, seuilLocs };
+/**
+ * Calcule les stats de rentabilité d'une unité.
+ * @param {Object} unit   — unité (château ou photobooth)
+ * @param {number} coutParLoc — coût HT par location (déjà calculé par l'appelant)
+ */
+function calcUnitStats(unit, coutParLoc) {
+  const prixLoc   = parseFloat(unit.prixLocation)  || 0;
+  const nbMois    = parseFloat(unit.locationsMois) || 0;
+  const invest    = getUnitInvest(unit);
+  const marge     = prixLoc - coutParLoc;
+  return {
+    marge,
+    caMensuel:  prixLoc * nbMois,
+    caAnnuel:   prixLoc * nbMois * 12,
+    chargesVar: coutParLoc * nbMois * 12,
+    invest,
+    seuilLocs:  marge > 0 ? Math.ceil(invest / marge) : Infinity
+  };
+}
+
+function chateauCoutParLoc() {
+  return DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
+}
+
+function photoboothCoutParLoc() {
+  return DATA.fraisServicePhotobooth.rows.reduce((s,r) => {
+    return s + (r.prixHT != null ? (r.prixHT||0)*(parseFloat(r.usure)||0) : (parseFloat(r.coutParLoc)||0));
+  }, 0);
 }
 
 /** Rendu complet de toutes les cartes château */
 function renderChateauUnits() {
   const container = document.getElementById('chateau-units-container');
+  const coutLoc   = chateauCoutParLoc();
 
-  // Badge coût / loc dans l'en-tête de section (HT = prixHT * usure)
-  const coutLocHT = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
   const badge = document.getElementById('chateau-cost-badge');
-  if (badge) badge.innerHTML = `${fmtPrice(coutLocHT)}<span class="unit-cost-label"> frais de service</span>`;
+  if (badge) badge.innerHTML = `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>`;
 
-  container.innerHTML = state.chateauUnits.map(unit => {
-    const s = calcUnitStats(unit);
-    return buildUnitCardHTML(unit, s);
-  }).join('');
+  container.innerHTML = state.chateauUnits.map(unit =>
+    buildUnitCardHTML(unit, calcUnitStats(unit, coutLoc))
+  ).join('');
 
-  // ── Listeners communs ──
-  // Suppression
-  container.querySelectorAll('.unit-delete').forEach(btn => {
-    btn.addEventListener('click', () => removeChateauUnit(btn.dataset.unitId));
-  });
-
-  // Expand / collapse détail articles
-  container.querySelectorAll('.unit-expand-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.unitId;
-      if (state.expandedUnits.has(id)) {
-        state.expandedUnits.delete(id);
-      } else {
-        state.expandedUnits.add(id);
-      }
-      renderChateauUnits();
-    });
-  });
-
-  // Inputs numériques et texte — mise à jour sans re-render (préserve le focus)
-  container.querySelectorAll('.unit-input').forEach(input => {
-    input.addEventListener('input', () => {
-      const unitId = input.dataset.unitId;
-      const field  = input.dataset.field;
-      const unit   = state.chateauUnits.find(u => String(u.id) === String(unitId));
-      if (!unit) return;
-      const htFields  = ['prixAchat', 'prixLivraison'];
-      const numFields = ['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois'];
-      if (numFields.includes(field)) {
-        const val = parseFloat(input.value) || 0;
-        unit[field] = htFields.includes(field) ? val * 1.2 : val;
-      } else {
-        unit[field] = input.value;
-      }
-      // Mise à jour légère : stats de cette carte + simulateur global
-      refreshUnitStats(unit);
-      renderSummary();
-      renderSimulator();
-      updateGrandTotal();
-      scheduleAutoSave();
-    });
-  });
+  attachUnitListeners(container, state.chateauUnits, removeChateauUnit, coutLoc, true);
 }
 
 /** Construit le HTML du détail des équipements (dépliable) */
@@ -888,19 +859,20 @@ function buildUnitDetailHTML() {
   return html;
 }
 
-/** Construit le HTML d'une carte château */
-function buildUnitCardHTML(unit, s) {
-  const expanded  = state.expandedUnits.has(String(unit.id));
+/** Construit le HTML d'une carte unité (château ou photobooth) */
+function buildUnitCardHTML(unit, s, cfg = {}) {
+  const { icon = '🏰', placeholder = 'Nom du château', showExpand = true } = cfg;
+  const expanded  = showExpand && state.expandedUnits.has(String(unit.id));
   const deleteBtn = unit.isMain ? ''
     : `<button class="btn-danger unit-delete" data-unit-id="${unit.id}">✕</button>`;
 
   return `
     <div class="unit-card" data-unit-id="${unit.id}">
       <div class="unit-header">
-        <span class="unit-icon">🏰</span>
+        <span class="unit-icon">${icon}</span>
         <input class="unit-input unit-name-input" type="text"
                data-unit-id="${unit.id}" data-field="label"
-               value="${escHtml(unit.label)}" placeholder="Nom du château">
+               value="${escHtml(unit.label)}" placeholder="${escHtml(placeholder)}">
         ${deleteBtn}
       </div>
 
@@ -935,12 +907,13 @@ function buildUnitCardHTML(unit, s) {
         ${buildUnitStatsHTML(s)}
       </div>
 
+      ${showExpand ? `
       <div class="unit-expand-bar">
         <button class="unit-expand-btn" data-unit-id="${unit.id}">
           ${expanded ? '▲ Masquer les équipements' : '▼ Voir les équipements'}
         </button>
       </div>
-      ${expanded ? `<div class="unit-detail">${buildUnitDetailHTML()}</div>` : ''}
+      ${expanded ? `<div class="unit-detail">${buildUnitDetailHTML()}</div>` : ''}` : ''}
     </div>`;
 }
 
@@ -968,10 +941,55 @@ function buildUnitStatsHTML(s) {
 }
 
 /** Met à jour uniquement les stats d'une carte (sans re-render global) */
-function refreshUnitStats(unit) {
-  const s       = calcUnitStats(unit);
+function refreshUnitStats(unit, coutParLoc) {
   const statsEl = document.querySelector(`.unit-stats[data-stats-for="${unit.id}"]`);
-  if (statsEl) statsEl.innerHTML = buildUnitStatsHTML(s);
+  if (statsEl) statsEl.innerHTML = buildUnitStatsHTML(calcUnitStats(unit, coutParLoc));
+}
+
+/**
+ * Attache tous les listeners d'une section d'unités (inputs, suppression, expand).
+ * @param {Element}  container    — conteneur DOM
+ * @param {Array}    units        — tableau d'unités de l'état
+ * @param {Function} removeFn     — fonction de suppression (id) => void
+ * @param {number}   coutParLoc   — coût HT par location pour le calcul de stats
+ * @param {boolean}  hasExpand    — true si les cartes ont un bouton "voir équipements"
+ */
+function attachUnitListeners(container, units, removeFn, coutParLoc, hasExpand) {
+  container.querySelectorAll('.unit-delete').forEach(btn => {
+    btn.addEventListener('click', () => removeFn(btn.dataset.unitId));
+  });
+
+  if (hasExpand) {
+    container.querySelectorAll('.unit-expand-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.unitId;
+        state.expandedUnits.has(id) ? state.expandedUnits.delete(id) : state.expandedUnits.add(id);
+        renderChateauUnits();
+      });
+    });
+  }
+
+  const htFields  = new Set(['prixAchat', 'prixLivraison']);
+  const numFields = new Set(['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois']);
+
+  container.querySelectorAll('.unit-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const unit = units.find(u => String(u.id) === String(input.dataset.unitId));
+      if (!unit) return;
+      const field = input.dataset.field;
+      if (numFields.has(field)) {
+        const val = parseFloat(input.value) || 0;
+        unit[field] = htFields.has(field) ? val * 1.2 : val;
+      } else {
+        unit[field] = input.value;
+      }
+      refreshUnitStats(unit, coutParLoc);
+      renderSummary();
+      renderSimulator();
+      updateGrandTotal();
+      scheduleAutoSave();
+    });
+  });
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -980,14 +998,10 @@ function refreshUnitStats(unit) {
 
 function initPhotoboothUnits() {
   document.getElementById('add-photobooth-btn').addEventListener('click', () => {
-    const id = Date.now();
     state.photoboothUnits.push({
-      id,
+      id: Date.now(),
       label: `Photobooth ${state.photoboothUnits.length + 1}`,
-      prixAchat: 0,
-      prixLivraison: 0,
-      prixLocation: 100,
-      locationsMois: 4
+      prixAchat: 0, prixLivraison: 0, prixLocation: 100, locationsMois: 4
     });
     renderPhotoboothUnits();
     renderSummary();
@@ -1006,152 +1020,22 @@ function removePhotoboothUnit(id) {
   scheduleAutoSave();
 }
 
-/** Calcule les stats d'un photobooth */
-function calcPhotoboothStats(unit) {
-  const prixLoc    = parseFloat(unit.prixLocation)  || 0;
-  const nbMois     = parseFloat(unit.locationsMois) || 0;
-  const invest     = (parseFloat(unit.prixAchat) || 0) + (parseFloat(unit.prixLivraison) || 0);
-  const coutParLoc = DATA.fraisServicePhotobooth.rows.reduce((s,r) => s + (parseFloat(r.coutParLoc)||0), 0);
-  const marge      = prixLoc - coutParLoc;
-  const caMensuel  = prixLoc * nbMois;
-  const caAnnuel   = caMensuel * 12;
-  const chargesVar = coutParLoc * nbMois * 12;
-  const seuilLocs  = marge > 0 ? Math.ceil(invest / marge) : Infinity;
-  return { marge, caMensuel, caAnnuel, chargesVar, invest, seuilLocs };
-}
-
 function renderPhotoboothUnits() {
   const container = document.getElementById('photobooth-units-container');
   const hint      = document.getElementById('photobooth-hint');
+  const coutLoc   = photoboothCoutParLoc();
 
-  // Badge coût / loc dans l'en-tête de section
-  const coutLoc = DATA.fraisServicePhotobooth.rows.reduce((s,r) => s + (parseFloat(r.coutParLoc)||0), 0);
   const badge = document.getElementById('photobooth-cost-badge');
   if (badge) badge.innerHTML = coutLoc > 0
-    ? `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>`
-    : '';
+    ? `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>` : '';
 
   hint.style.display = state.photoboothUnits.length === 0 ? '' : 'none';
 
-  container.innerHTML = state.photoboothUnits.map(unit => {
-    const s = calcPhotoboothStats(unit);
-    return buildPhotoboothCardHTML(unit, s);
-  }).join('');
+  container.innerHTML = state.photoboothUnits.map(unit =>
+    buildUnitCardHTML(unit, calcUnitStats(unit, coutLoc), { icon: '📷', placeholder: 'Nom du photobooth', showExpand: false })
+  ).join('');
 
-  // Suppression
-  container.querySelectorAll('.unit-delete').forEach(btn => {
-    btn.addEventListener('click', () => removePhotoboothUnit(btn.dataset.unitId));
-  });
-
-  // Inputs
-  container.querySelectorAll('.unit-input').forEach(input => {
-    input.addEventListener('input', () => {
-      const unitId = input.dataset.unitId;
-      const field  = input.dataset.field;
-      const unit   = state.photoboothUnits.find(u => String(u.id) === String(unitId));
-      if (!unit) return;
-      const htFields  = ['prixAchat', 'prixLivraison'];
-      const numFields = ['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois'];
-      if (numFields.includes(field)) {
-        const val = parseFloat(input.value) || 0;
-        unit[field] = htFields.includes(field) ? val * 1.2 : val;
-      } else {
-        unit[field] = input.value;
-      }
-      refreshPhotoboothStats(unit);
-      renderSummary();
-      renderSimulator();
-      updateGrandTotal();
-      scheduleAutoSave();
-    });
-  });
-}
-
-function buildPhotoboothCardHTML(unit, s) {
-  const isGood = n => isFinite(n) && n <= 40;
-  const fmtLoc = n => isFinite(n) ? `${n} loc.` : '∞';
-
-  return `
-    <div class="unit-card" data-unit-id="${unit.id}">
-      <div class="unit-header">
-        <span class="unit-icon">📷</span>
-        <input class="unit-input unit-name-input" type="text"
-               data-unit-id="${unit.id}" data-field="label"
-               value="${escHtml(unit.label)}" placeholder="Nom du photobooth">
-        <button class="btn-danger unit-delete" data-unit-id="${unit.id}">✕</button>
-      </div>
-
-      <div class="unit-grid">
-        <div class="unit-field">
-          <div class="unit-field-label">Prix d'achat (HT)</div>
-          <input type="number" class="unit-input unit-price-input"
-                 data-unit-id="${unit.id}" data-field="prixAchat"
-                 value="${fmtRaw((unit.prixAchat || 0) / 1.2)}" min="0" step="10" placeholder="0.00">
-        </div>
-        <div class="unit-field">
-          <div class="unit-field-label">Prix de livraison (HT)</div>
-          <input type="number" class="unit-input unit-price-input"
-                 data-unit-id="${unit.id}" data-field="prixLivraison"
-                 value="${fmtRaw((unit.prixLivraison || 0) / 1.2)}" min="0" step="1" placeholder="0.00">
-        </div>
-        <div class="unit-field">
-          <div class="unit-field-label">Prix de location (€ TTC)</div>
-          <input type="number" class="unit-input unit-price-input"
-                 data-unit-id="${unit.id}" data-field="prixLocation"
-                 value="${fmtRaw(unit.prixLocation)}" min="0" step="5" placeholder="100">
-        </div>
-        <div class="unit-field">
-          <div class="unit-field-label">Locations / mois</div>
-          <input type="number" class="unit-input"
-                 data-unit-id="${unit.id}" data-field="locationsMois"
-                 value="${unit.locationsMois || ''}" min="0" step="1" placeholder="4">
-        </div>
-      </div>
-
-      <div class="unit-stats" data-stats-for="${unit.id}">
-        <div class="unit-stat">
-          <span class="unit-stat-label">Marge / loc.</span>
-          <span class="unit-stat-value ${s.marge >= 0 ? 'pos' : 'neg'}">${fmtPrice(s.marge)}</span>
-        </div>
-        <div class="unit-stat">
-          <span class="unit-stat-label">CA mensuel</span>
-          <span class="unit-stat-value">${fmtPrice(s.caMensuel)}</span>
-        </div>
-        <div class="unit-stat">
-          <span class="unit-stat-label">CA annuel</span>
-          <span class="unit-stat-value">${fmtPrice(s.caAnnuel)}</span>
-        </div>
-        <div class="unit-stat">
-          <span class="unit-stat-label">Seuil invest.</span>
-          <span class="unit-stat-value ${isGood(s.seuilLocs) ? 'pos' : 'warn'}">${fmtLoc(s.seuilLocs)}</span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function refreshPhotoboothStats(unit) {
-  const s       = calcPhotoboothStats(unit);
-  const statsEl = document.querySelector(`.unit-stats[data-stats-for="${unit.id}"]`);
-  if (!statsEl) return;
-  const isGood = n => isFinite(n) && n <= 40;
-  const fmtLoc = n => isFinite(n) ? `${n} loc.` : '∞';
-  statsEl.innerHTML = `
-    <div class="unit-stat">
-      <span class="unit-stat-label">Marge / loc.</span>
-      <span class="unit-stat-value ${s.marge >= 0 ? 'pos' : 'neg'}">${fmtPrice(s.marge)}</span>
-    </div>
-    <div class="unit-stat">
-      <span class="unit-stat-label">CA mensuel</span>
-      <span class="unit-stat-value">${fmtPrice(s.caMensuel)}</span>
-    </div>
-    <div class="unit-stat">
-      <span class="unit-stat-label">CA annuel</span>
-      <span class="unit-stat-value">${fmtPrice(s.caAnnuel)}</span>
-    </div>
-    <div class="unit-stat">
-      <span class="unit-stat-label">Seuil invest.</span>
-      <span class="unit-stat-value ${isGood(s.seuilLocs) ? 'pos' : 'warn'}">${fmtLoc(s.seuilLocs)}</span>
-    </div>`;
+  attachUnitListeners(container, state.photoboothUnits, removePhotoboothUnit, coutLoc, false);
 }
 
 
@@ -1167,15 +1051,18 @@ function renderSimulator() {
   let totalCA          = 0;
   let totalChargesVar  = 0;
 
+  const coutLocChateau    = chateauCoutParLoc();
+  const coutLocPhotobooth = photoboothCoutParLoc();
+
   state.chateauUnits.forEach(unit => {
-    const s = calcUnitStats(unit);
+    const s = calcUnitStats(unit, coutLocChateau);
     totalInvestEquip += s.invest;
     totalCA          += s.caAnnuel;
     totalChargesVar  += s.chargesVar;
   });
 
   state.photoboothUnits.forEach(unit => {
-    const s = calcPhotoboothStats(unit);
+    const s = calcUnitStats(unit, coutLocPhotobooth);
     totalInvestEquip += s.invest;
     totalCA          += s.caAnnuel;
     totalChargesVar  += s.chargesVar;
@@ -1339,7 +1226,7 @@ function exportCurrentTableCSV() {
 
 function exportSummaryCSV() {
   const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
-  const coutParLoc   = DATA.fraisRecurrent.totalCoutParLoc;
+  const coutParLoc   = chateauCoutParLoc();
   const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
   const investTotal  = [...state.chateauUnits, ...state.photoboothUnits].reduce(
     (s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);

@@ -17,7 +17,7 @@ const DATA = {
     accentClass: "accent-cyan",
     columns: [
       { key: "produit",     label: "Produit",       type: "text"   },
-      { key: "becarefull",  label: "⚠️ BECAREFULL", type: "text"   },
+      { key: "avertissement", label: "⚠️ Avertissement", type: "text"   },
       { key: "qte",         label: "Qté",           type: "number" },
       { key: "prixHT",      label: "Prix HT",       type: "price"  },
       { key: "prixTTC",     label: "Prix TTC",      type: "price"  },
@@ -27,7 +27,7 @@ const DATA = {
     rows: [
       {
         produit: "Groupe électrogène",
-        becarefull: "Techno inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
+        avertissement: "Techno inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
         qte: 1,
         prixHT: 559.20,
         prixTTC: 699.00,
@@ -37,7 +37,7 @@ const DATA = {
       },
       {
         produit: "Enrouleur (élec)",
-        becarefull: "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
+        avertissement: "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
         qte: 1,
         prixHT: 55.12,
         prixTTC: 66.14,
@@ -47,7 +47,7 @@ const DATA = {
       },
       {
         produit: "Jerican",
-        becarefull: "Consommation d'un château 10h → 9 à 12 L",
+        avertissement: "Consommation d'un château 10h → 9 à 12 L",
         qte: 1,
         prixHT: 11.12,
         prixTTC: 13.34,
@@ -57,7 +57,7 @@ const DATA = {
       },
       {
         produit: "Plaque anti-vibration",
-        becarefull: "",
+        avertissement: "",
         qte: 1,
         prixHT: 9.20,
         prixTTC: 11.04,
@@ -67,7 +67,7 @@ const DATA = {
       },
       {
         produit: "Bâche protection",
-        becarefull: "",
+        avertissement: "",
         qte: 1,
         prixHT: 8.80,
         prixTTC: 10.56,
@@ -77,7 +77,7 @@ const DATA = {
       },
       {
         produit: "Diable rigide STANDERS",
-        becarefull: "",
+        avertissement: "",
         qte: 1,
         prixHT: 43.12,
         prixTTC: 51.74,

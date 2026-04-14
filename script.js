@@ -641,12 +641,13 @@ function renderSummary() {
   ]);
 
   // ── Cartes "Charges de location" — agrégées par type ────────
+  const coutParLocHTChateaux = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
   const totalChargesVarChateaux = state.chateauUnits.reduce((s, u) => {
-    return s + DATA.fraisRecurrent.totalCoutParLoc * (parseFloat(u.locationsMois) || 0) * 12;
+    return s + coutParLocHTChateaux * (parseFloat(u.locationsMois) || 0) * 12;
   }, 0);
   const totalLocsAnChateaux = state.chateauUnits.reduce((s, u) => s + (parseFloat(u.locationsMois) || 0) * 12, 0);
   const tooltipChateauLoc = buildTooltip(
-    DATA.fraisRecurrent.rows.map(r => ({ label: r.intitule, price: toHT(r.coutParLoc) }))
+    DATA.fraisRecurrent.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) }))
   );
   const chateauLocCard = state.chateauUnits.length ? `
     <div class="summary-card accent-green">
@@ -654,7 +655,7 @@ function renderSummary() {
         <div class="sc-label">🏰 Châteaux — charges de location</div>
         ${tooltipChateauLoc}
       </div>
-      <div class="sc-value">${fmtPrice(toHT(totalChargesVarChateaux))}</div>
+      <div class="sc-value">${fmtPrice(totalChargesVarChateaux)}</div>
       <div class="sc-sub">HT — ${totalLocsAnChateaux} loc/an · ${nbChateaux} château${nbChateaux > 1 ? 'x' : ''}</div>
     </div>` : '';
 
@@ -664,7 +665,7 @@ function renderSummary() {
   }, 0);
   const totalLocsAnPhotobooths = state.photoboothUnits.reduce((s, u) => s + (parseFloat(u.locationsMois) || 0) * 12, 0);
   const tooltipPhotoboothLoc = buildTooltip(
-    DATA.fraisServicePhotobooth.rows.map(r => ({ label: r.intitule, price: toHT(r.coutParLoc) }))
+    DATA.fraisServicePhotobooth.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) || toHT(r.coutParLoc) }))
   );
   const photoboothLocCard = state.photoboothUnits.length ? `
     <div class="summary-card accent-purple">
@@ -672,7 +673,7 @@ function renderSummary() {
         <div class="sc-label">📷 Photobooths — charges de location</div>
         ${tooltipPhotoboothLoc}
       </div>
-      <div class="sc-value">${fmtPrice(toHT(totalChargesVarPhotobooths))}</div>
+      <div class="sc-value">${fmtPrice(totalChargesVarPhotobooths)}</div>
       <div class="sc-sub">HT — ${totalLocsAnPhotobooths} loc/an · ${nbPhotobooths} photobooth${nbPhotobooths > 1 ? 's' : ''}</div>
     </div>` : '';
 
@@ -797,7 +798,7 @@ function getUnitInvest(unit) {
 
 /** Calcule les stats de rentabilité d'une unité */
 function calcUnitStats(unit) {
-  const coutParLoc  = DATA.fraisRecurrent.rows.reduce((s,r) => s + (parseFloat(r.coutParLoc)||0), 0);
+  const coutParLoc  = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
   const prixLoc     = parseFloat(unit.prixLocation)  || 0;
   const nbMois      = parseFloat(unit.locationsMois) || 0;
   const invest      = getUnitInvest(unit);
@@ -813,10 +814,10 @@ function calcUnitStats(unit) {
 function renderChateauUnits() {
   const container = document.getElementById('chateau-units-container');
 
-  // Badge coût / loc dans l'en-tête de section
-  const coutLoc = DATA.fraisRecurrent.rows.reduce((s,r) => s + (parseFloat(r.coutParLoc)||0), 0);
+  // Badge coût / loc dans l'en-tête de section (HT = prixHT * usure)
+  const coutLocHT = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
   const badge = document.getElementById('chateau-cost-badge');
-  if (badge) badge.innerHTML = `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>`;
+  if (badge) badge.innerHTML = `${fmtPrice(coutLocHT)}<span class="unit-cost-label"> frais de service</span>`;
 
   container.innerHTML = state.chateauUnits.map(unit => {
     const s = calcUnitStats(unit);
@@ -870,17 +871,17 @@ function renderChateauUnits() {
 /** Construit le HTML du détail des équipements (dépliable) */
 function buildUnitDetailHTML() {
   const rows  = DATA.chateauGonflable.rows;
-  const total = rows.reduce((s, r) => s + (r.prixTTC || 0), 0);
+  const total = rows.reduce((s, r) => s + (r.prixHT || 0), 0);
   let html = '<div class="unit-detail-list">';
   rows.forEach(row => {
     html += `<div class="detail-row">
                <span class="detail-row-name">${escHtml(row.produit)}</span>
-               <span class="detail-row-price">${fmtPrice((row.prixTTC || 0) / 1.2)}</span>
+               <span class="detail-row-price">${fmtPrice(row.prixHT || 0)}</span>
              </div>`;
   });
   html += `<div class="detail-row detail-row-total">
              <span class="detail-row-name">Total équipements <small style="font-weight:400;color:var(--text-muted)">(HT)</small></span>
-             <span class="detail-row-price">${fmtPrice(total / 1.2)}</span>
+             <span class="detail-row-price">${fmtPrice(total)}</span>
            </div>`;
   html += '</div>';
   return html;
@@ -1424,10 +1425,15 @@ function loadData() {
         if (DATA[k] && Array.isArray(snap.data[k]?.rows)) {
           const orig = DATA[k].rows;
           // Fusionne les données sauvegardées avec les métadonnées statiques (ex: image)
-          DATA[k].rows = snap.data[k].rows.map((savedRow, i) => ({
-            ...savedRow,
-            ...(orig[i]?.image ? { image: orig[i].image } : {})
-          }));
+          DATA[k].rows = snap.data[k].rows.map((savedRow, i) => {
+            const o = orig[i] || {};
+            return {
+              ...savedRow,
+              ...(o.image   ? { image:   o.image   } : {}),
+              ...(o.prixHT  != null ? { prixHT:  o.prixHT  } : {}),
+              ...(o.prixTTC != null ? { prixTTC: o.prixTTC } : {})
+            };
+          });
         }
       });
     }

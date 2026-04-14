@@ -18,7 +18,14 @@
         <button class="nav-btn active" data-page="detail"  aria-current="page">Détail</button>
         <button class="nav-btn"        data-page="resume"                      >Résumé</button>
       </nav>
-      <button class="btn-save" id="save-btn" title="Sauvegarder toutes les données">💾 Sauvegarder</button>
+      <div class="header-actions">
+        <button class="btn-save" id="save-btn" title="Sauvegarder toutes les données">💾 Sauvegarder</button>
+        <button class="btn-export-file" id="export-file-btn" title="Exporter la configuration dans un fichier">⬇ Exporter</button>
+        <label class="btn-import-file" title="Importer une configuration depuis un fichier">
+          ⬆ Importer
+          <input type="file" id="import-file-input" accept=".bpsave,.json" style="display:none" />
+        </label>
+      </div>
     </div>
     <div class="save-toast" id="save-toast"></div>
   </header>

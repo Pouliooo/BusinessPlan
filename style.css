@@ -89,6 +89,12 @@ body {
 .nav-btn:hover  { background: rgba(255,255,255,.18); color: #fff; }
 .nav-btn.active { background: #fff; color: var(--primary); font-weight: 700; }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-save {
   background: rgba(255,255,255,.15);
   border: 1px solid rgba(255,255,255,.3);
@@ -102,6 +108,23 @@ body {
   white-space: nowrap;
 }
 .btn-save:hover { background: rgba(255,255,255,.28); }
+
+.btn-export-file,
+.btn-import-file {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.25);
+  color: #fff;
+  padding: 6px 13px;
+  border-radius: var(--radius);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn-export-file:hover,
+.btn-import-file:hover { background: rgba(255,255,255,.25); }
 .btn-save.unsaved::after {
   content: '';
   display: inline-block;

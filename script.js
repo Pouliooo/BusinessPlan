@@ -366,7 +366,8 @@ function buildTableHTML(dataset, rows, datasetKey) {
         const cellCls = col.type === 'price' ? 'price-cell' :
                         col.type === 'number' ? 'num-cell' :
                         col.type === 'text'   ? 'text-cell' : '';
-        html += `<td class="${cellCls}">${renderCellShort(row[col.key], col.type)}</td>`;
+        const cellVal = col.compute ? col.compute(row) : row[col.key];
+        html += `<td class="${cellCls}">${renderCellShort(cellVal, col.type)}</td>`;
       });
       html += '</tr>';
     });
@@ -401,7 +402,7 @@ function buildFooterHTML(dataset, rows) {
       html += `<td class="price-cell"><strong>${fmtPrice(dataset[preKey])}</strong></td>`;
     } else {
       // 2) Calcul dynamique depuis les rows visibles
-      const sum = rows.reduce((acc, r) => acc + (parseFloat(r[col.key]) || 0), 0);
+      const sum = rows.reduce((acc, r) => acc + (parseFloat(col.compute ? col.compute(r) : r[col.key]) || 0), 0);
       html += `<td class="price-cell"><strong>${fmtPrice(sum)}</strong></td>`;
     }
   });
@@ -1387,21 +1388,14 @@ let _autoSaveTimer = null;
 
 function initSave() {
   document.getElementById('save-btn').addEventListener('click', () => saveData(true));
+  document.getElementById('export-file-btn').addEventListener('click', exportToFile);
+  document.getElementById('import-file-input').addEventListener('change', importFromFile);
 }
 
 function saveData(showNotif = false) {
   try {
-    const snapshot = {
-      chateauUnits:    state.chateauUnits,
-      photoboothUnits: state.photoboothUnits,
-      customBlocks:    state.customBlocks,
-      data: Object.fromEntries(
-        Object.keys(DATA).map(k => [k, { rows: DATA[k].rows }])
-      )
-    };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(buildSnapshot()));
     if (showNotif) showToast('✓ Sauvegardé');
-    // Indicateur visuel sur le bouton
     const btn = document.getElementById('save-btn');
     if (btn) btn.classList.remove('unsaved');
   } catch(e) {
@@ -1413,34 +1407,92 @@ function loadData() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
-    const snap = JSON.parse(raw);
-    if (Array.isArray(snap.chateauUnits)    && snap.chateauUnits.length)
-      state.chateauUnits    = snap.chateauUnits;
-    if (Array.isArray(snap.photoboothUnits))
-      state.photoboothUnits = snap.photoboothUnits;
-    if (Array.isArray(snap.customBlocks))
-      state.customBlocks    = snap.customBlocks;
-    if (snap.data) {
-      Object.keys(snap.data).forEach(k => {
-        if (DATA[k] && Array.isArray(snap.data[k]?.rows)) {
-          const orig = DATA[k].rows;
-          // Fusionne les données sauvegardées avec les métadonnées statiques (ex: image)
-          DATA[k].rows = snap.data[k].rows.map((savedRow, i) => {
-            const o = orig[i] || {};
-            return {
-              ...savedRow,
-              ...(o.image   ? { image:   o.image   } : {}),
-              ...(o.prixHT  != null ? { prixHT:  o.prixHT  } : {}),
-              ...(o.prixTTC != null ? { prixTTC: o.prixTTC } : {})
-            };
-          });
-        }
-      });
-    }
-    recomputeDataTotals();
+    applySnapshot(JSON.parse(raw));
   } catch(e) {
     console.error('Erreur chargement sauvegarde', e);
   }
+}
+
+function buildSnapshot() {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    chateauUnits:    state.chateauUnits,
+    photoboothUnits: state.photoboothUnits,
+    customBlocks:    state.customBlocks,
+    data: Object.fromEntries(
+      Object.keys(DATA).map(k => [k, { rows: DATA[k].rows }])
+    )
+  };
+}
+
+function applySnapshot(snap) {
+  if (Array.isArray(snap.chateauUnits) && snap.chateauUnits.length)
+    state.chateauUnits    = snap.chateauUnits;
+  if (Array.isArray(snap.photoboothUnits))
+    state.photoboothUnits = snap.photoboothUnits;
+  if (Array.isArray(snap.customBlocks))
+    state.customBlocks    = snap.customBlocks;
+  if (snap.data) {
+    Object.keys(snap.data).forEach(k => {
+      if (DATA[k] && Array.isArray(snap.data[k]?.rows)) {
+        const orig = DATA[k].rows;
+        DATA[k].rows = snap.data[k].rows.map((savedRow, i) => {
+          const o = orig[i] || {};
+          return {
+            ...savedRow,
+            ...(o.image   ? { image:   o.image   } : {}),
+            ...(o.prixHT  != null ? { prixHT:  o.prixHT  } : {}),
+            ...(o.prixTTC != null ? { prixTTC: o.prixTTC } : {})
+          };
+        });
+      }
+    });
+  }
+  recomputeDataTotals();
+}
+
+function exportToFile() {
+  const snap = buildSnapshot();
+  const json = JSON.stringify(snap, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `bp-chateau-${date}.bpsave`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✓ Fichier exporté');
+}
+
+function importFromFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const snap = JSON.parse(evt.target.result);
+      applySnapshot(snap);
+      saveData(false); // sync localStorage avec le fichier importé
+      renderAll();
+      showToast('✓ Configuration importée');
+    } catch {
+      showToast('⚠ Fichier invalide');
+    }
+    // Reset input pour permettre de réimporter le même fichier
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function renderAll() {
+  renderChateauUnits();
+  renderPhotoboothUnits();
+  renderSummary();
+  renderSimulator();
+  updateGrandTotal();
+  renderTable();
 }
 
 function scheduleAutoSave() {

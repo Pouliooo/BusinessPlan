@@ -101,7 +101,7 @@ const DATA = {
       { key: "usure",       label: "Usure / loc", type: "number" },
       { key: "prixHT",      label: "Prix HT",     type: "price"  },
       { key: "prixTTC",     label: "Prix TTC",    type: "price"  },
-      { key: "coutParLoc",  label: "Coût / loc",  type: "price"  }
+      { key: "coutParLoc",  label: "Coût / loc",  type: "price", compute: row => (row.prixHT || 0) * (parseFloat(row.usure) || 0) }
     ],
     rows: [
       {

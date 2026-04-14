@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Plan MVP — Château Gonflable</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════
+       HEADER / NAVIGATION
+  ══════════════════════════════════════════ -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo">🏰 Business Plan MVP</div>
+      <nav class="main-nav" role="navigation" aria-label="Navigation principale">
+        <button class="nav-btn active" data-page="detail"  aria-current="page">Détail</button>
+        <button class="nav-btn"        data-page="resume"                      >Résumé</button>
+      </nav>
+      <button class="btn-save" id="save-btn" title="Sauvegarder toutes les données">💾 Sauvegarder</button>
+    </div>
+    <div class="save-toast" id="save-toast"></div>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       PAGE DÉTAIL
+  ══════════════════════════════════════════ -->
+  <main class="page" id="page-detail" role="main">
+
+    <div class="tabs-container">
+
+      <!-- Onglets -->
+      <div class="tabs-header" role="tablist">
+        <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="chateau"            >Château Gonflable</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="photobooth"        >Photobooth</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-initiaux"    >Frais Initiaux</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-recurrents"  >Frais récurrents</button>
+      </div>
+
+      <!-- Contenu de l'onglet actif -->
+      <div class="tab-content-area" role="tabpanel">
+
+        <!-- Barre d'outils -->
+        <div class="table-toolbar">
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              class="search-input"
+              id="search-input"
+              placeholder="Rechercher dans le tableau…"
+              autocomplete="off"
+              aria-label="Rechercher"
+            />
+            <button class="search-clear hidden" id="search-clear" aria-label="Effacer">✕</button>
+          </div>
+          <button class="btn-secondary" id="export-csv-btn" title="Exporter le tableau courant en CSV">
+            ⬇ Export CSV
+          </button>
+        </div>
+
+        <!-- Tableau (rempli dynamiquement) -->
+        <div class="table-wrapper" id="table-wrapper" aria-live="polite"></div>
+
+      </div><!-- /tab-content-area -->
+    </div><!-- /tabs-container -->
+
+  </main><!-- /page-detail -->
+
+
+  <!-- ══════════════════════════════════════════
+       PAGE RÉSUMÉ
+  ══════════════════════════════════════════ -->
+  <main class="page hidden" id="page-resume" role="main">
+
+    <!-- ── CONFIGURATION ────────────────────────────── -->
+    <div class="resume-section-header">
+      <span class="resume-section-icon">⚙️</span>
+      <h2>Configuration</h2>
+    </div>
+
+    <div class="card" id="chateaux-section">
+      <div class="section-header">
+        <div class="section-title-group">
+          <h2 class="card-title">🏰 Mes Châteaux</h2>
+          <span class="unit-cost-badge" id="chateau-cost-badge"></span>
+        </div>
+        <button class="btn-primary" id="add-chateau-btn">+ Ajouter un château</button>
+      </div>
+      <div id="chateau-units-container"></div>
+    </div>
+
+    <div class="card" id="photobooths-section">
+      <div class="section-header">
+        <div class="section-title-group">
+          <h2 class="card-title">📷 Mes Photobooths</h2>
+          <span class="unit-cost-badge" id="photobooth-cost-badge"></span>
+        </div>
+        <button class="btn-primary" id="add-photobooth-btn">+ Ajouter un photobooth</button>
+      </div>
+      <p class="hint" id="photobooth-hint">Aucun photobooth ajouté.</p>
+      <div id="photobooth-units-container"></div>
+    </div>
+
+    <!-- ── BUSINESS PLAN ─────────────────────────────── -->
+    <div class="resume-section-header">
+      <span class="resume-section-icon">📈</span>
+      <h2>Business Plan</h2>
+    </div>
+
+    <!-- Cartes de synthèse -->
+    <div class="summary-grid" id="summary-grid" aria-label="Synthèse financière"></div>
+
+    <!-- Simulation globale — résultats agrégés -->
+    <div class="card" id="simulation-card">
+      <h2 class="card-title">📊 Simulation globale</h2>
+      <div class="be-results" id="be-results"></div>
+    </div>
+
+    <!-- Blocs personnalisés -->
+    <div class="card custom-blocks-section">
+      <div class="section-header">
+        <h2 class="card-title">➕ Blocs personnalisés</h2>
+        <button class="btn-primary" id="add-block-btn">+ Ajouter un bloc</button>
+      </div>
+      <p class="hint" id="blocks-hint">Aucun bloc ajouté. Ces blocs s'ajoutent au total global.</p>
+      <div id="custom-blocks-container"></div>
+    </div>
+
+    <!-- Grand total -->
+    <div class="grand-total-card" id="grand-total" aria-live="polite"></div>
+
+    <!-- Barre d'export -->
+    <div class="export-bar">
+      <button class="btn-secondary" id="print-btn">🖨 Imprimer / PDF</button>
+      <button class="btn-secondary" id="export-summary-csv-btn">⬇ Export CSV résumé</button>
+    </div>
+
+  </main><!-- /page-resume -->
+
+
+  <!-- ══════════════════════════════════════════
+       PANNEAU LATÉRAL (MODALE)
+  ══════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-panel" id="modal-panel">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">Détail</span>
+        <button class="modal-close" id="modal-close" aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal-content" id="modal-content"></div>
+      <div class="modal-footer hidden" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

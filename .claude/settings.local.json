@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la d:/BP/*.html d:/BP/*.css d:/BP/*.js)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(node --check d:/BP/data.js)",
+      "Bash(node --check d:/BP/script.js)",
+      "Bash(node --check d:\\\\BP\\\\script.js)",
+      "Bash(node --check d:\\\\BP\\\\data.js)",
+      "Bash(node --check \"d:\\\\BP\\\\script.js\")",
+      "Bash(node --check \"d:\\\\BP\\\\data.js\")"
+    ]
+  }
+}

@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Plan - Evenementiel</title>
+<style>
+  :root {
+    --green-dark: #1e4d3a;
+    --green-mid: #2d6a4f;
+    --green-light: #40916c;
+    --green-header: #1b4332;
+    --accent: #52b788;
+    --bg: #f8f9fa;
+    --white: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --text-light: #6c757d;
+    --red: #dc3545;
+    --yellow: #ffc107;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  /* HEADER */
+  .app-header {
+    background: var(--green-dark);
+    color: white;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+  .app-header span { font-size: 12px; opacity: 0.7; }
+
+  .help-banner {
+    background: white;
+    border-radius: 10px;
+    margin: 16px 32px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .help-banner .url-preview {
+    width: 220px;
+    min-width: 180px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+    background: #f6fbf7;
+  }
+  .help-banner .help-text {
+    flex: 1;
+    color: var(--text-light);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .help-banner .help-text strong {
+    color: var(--green-dark);
+  }
+
+  .import-panel {
+    background: white;
+    border-radius: 10px;
+    margin: 0 32px 16px;
+    padding: 16px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .import-panel input[type=file] {
+    border: 1px solid #d9e2ec;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    background: #fbfdff;
+  }
+  .import-panel .import-note {
+    color: var(--text-light);
+    font-size: 13px;
+    line-height: 1.4;
+    flex: 1 1 320px;
+  }
+
+  /* NAV TABS */
+  .nav-tabs {
+    background: var(--green-header);
+    display: flex;
+    gap: 2px;
+    padding: 0 32px;
+  }
+  .nav-tab {
+    padding: 10px 20px;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-tab:hover { color: white; background: rgba(255,255,255,0.05); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* MAIN */
+  .main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+
+  /* SECTION */
+  .section {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    margin-bottom: 28px;
+    overflow: hidden;
+    display: none;
+  }
+  .section.active { display: block; }
+
+  .section-header {
+    background: var(--green-dark);
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .section-header h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .section-total { font-size: 13px; background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 20px; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  thead th {
+    background: var(--green-mid);
+    color: white;
+    padding: 9px 10px;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  thead th.num { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:hover { background: #f0faf5; }
+  tbody tr.total-row { background: #e8f5e9; font-weight: 700; border-top: 2px solid var(--green-light); }
+  td { padding: 7px 10px; vertical-align: middle; }
+  td.num { text-align: right; }
+  td.calc { background: #f9fef9; color: var(--green-dark); font-weight: 600; text-align: right; }
+  td.muted { color: var(--text-light); font-style: italic; font-size: 11px; }
+
+  /* INPUTS */
+  input[type="text"], input[type="number"], input[type="url"] {
+    border: 1px solid transparent;
+    background: transparent;
+    width: 100%;
+    padding: 3px 5px;
+    font-size: 12.5px;
+    color: var(--text);
+    border-radius: 3px;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  input[type="number"] { text-align: right; }
+  input:hover { border-color: #ccc; background: white; }
+  input:focus { outline: none; border-color: var(--accent); background: white; box-shadow: 0 0 0 2px rgba(82,183,136,0.2); }
+  input[type="url"] { color: #0d6efd; font-size: 11px; }
+
+  /* BTN */
+  .btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn-green { background: var(--green-light); color: white; }
+  .btn-green:hover { background: var(--green-mid); }
+  .btn-red { background: transparent; color: var(--red); border: 1px solid var(--red); padding: 3px 8px; font-size: 11px; }
+  .btn-red:hover { background: var(--red); color: white; }
+  .btn-outline { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.5); }
+  .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+  .table-footer { padding: 10px 16px; background: #fafafa; border-top: 1px solid var(--border); }
+
+  /* SUMMARY PAGE */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+  }
+  @media(max-width:900px) { .summary-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .kpi-header {
+    background: var(--green-dark);
+    color: white;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .kpi-body { padding: 0; }
+  .kpi-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .kpi-row:last-child { border-bottom: none; }
+  .kpi-label { color: var(--text); }
+  .kpi-value { font-weight: 700; }
+  .kpi-value.positive { color: var(--green-light); }
+  .kpi-value.negative { color: var(--red); }
+  .kpi-value.neutral { color: var(--text); }
+  .kpi-note { font-size: 10px; color: var(--text-light); margin-left: 8px; }
+  .kpi-row.highlight { background: #f0faf5; font-size: 14px; }
+  .kpi-row.strong { background: var(--green-dark); color: white; font-size: 14px; font-weight: 700; }
+  .kpi-row.strong .kpi-value { color: var(--accent); }
+
+  .years-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .year-card {
+    background: var(--green-dark);
+    color: white;
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .year-label { font-size: 11px; opacity: 0.7; margin-bottom: 4px; text-transform: uppercase; }
+  .year-value { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .year-value.negative { color: #ff8080; }
+
+  /* ALERT */
+  .alert {
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin: 12px 20px;
+    font-size: 12px;
+  }
+  .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+  .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+
+  /* COMMENT CELL */
+  .comment-cell { max-width: 160px; }
+  .link-cell { max-width: 140px; }
+  .link-cell a { color: #0d6efd; text-decoration: none; font-size: 11px; word-break: break-all; }
+  .link-cell a:hover { text-decoration: underline; }
+
+  /* TOOLTIP remarque */
+  .remark-input { max-width: 200px; color: #6c757d; font-style: italic; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-MqmooYa2nlcekZ2e0p3hmGx1MZft/xSOE/QkZD4RjHPqvTfLtV8nE7nUdLGvzJsa8VFlf0ak6MAOQYa4D+TgWA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+
+<div class="app-header">
+  <div>
+    <h1>Business Plan — Evenementiel</h1>
+  </div>
+  <span id="last-saved"></span>
+</div>
+
+<div class="help-banner">
+  <div class="url-preview">
+    <svg viewBox="0 0 320 120" width="320" height="120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="120" rx="18" fill="#ffffff" stroke="#dfe4e8" stroke-width="1"/>
+      <rect x="12" y="14" width="296" height="28" rx="10" fill="#eff8f2"/>
+      <circle cx="32" cy="28" r="4" fill="#ff5f57"/>
+      <circle cx="52" cy="28" r="4" fill="#ffbd2e"/>
+      <circle cx="72" cy="28" r="4" fill="#28c840"/>
+      <rect x="94" y="20" width="180" height="12" rx="6" fill="#ffffff"/>
+      <text x="102" y="28" font-size="10" fill="#6c757d" font-family="Segoe UI, Arial, sans-serif">https://exemple.com/produit</text>
+      <rect x="12" y="56" width="296" height="44" rx="12" fill="#eff8f2"/>
+      <text x="22" y="84" font-size="11" fill="#3a6d41" font-family="Segoe UI, Arial, sans-serif">Colonne URL</text>
+      <rect x="22" y="92" width="256" height="10" rx="5" fill="#d6f2dc"/>
+      <text x="26" y="100" font-size="9.5" fill="#2f6b43" font-family="Segoe UI, Arial, sans-serif">https://exemple.com/lien-de-produit</text>
+    </svg>
+  </div>
+  <div class="help-text">
+    <p>Le site contient maintenant les éléments du plan MVP avec les coûts du matériel, les frais fixes et les frais récurrents.</p>
+    <p><strong>La colonne <em>Lien</em> correspond à l’URL.</strong> Ajoute ou colle l’URL de ton produit ou service dans ce champ pour garder les sources en un seul endroit.</p>
+    <p><strong>Pour les prix :</strong> saisis le montant en <em>Prix HT</em> et le <em>Prix TTC</em> se remplira automatiquement.</p>
+  </div>
+</div>
+
+<div class="import-panel">
+  <input id="excel-file" type="file" accept=".xlsx,.xls" />
+  <button class="btn btn-green" onclick="importExcelFile()">Importer Excel</button>
+  <span class="import-note">Choisis ton fichier Excel pour remplir automatiquement le tableau Matériel. Le fichier doit contenir une première ligne d’en-têtes comme <strong>Produit</strong>, <strong>Qté</strong>, <strong>Prix HT</strong>, <strong>Prix TTC</strong>, <strong>Prix location</strong> et <strong>Lien</strong>.</span>
+</div>
+
+<div class="nav-tabs">
+  <div class="nav-tab active" onclick="showTab('materiel', event)">Matériel</div>
+  <div class="nav-tab" onclick="showTab('frais-fixes', event)">Frais Fixes</div>
+  <div class="nav-tab" onclick="showTab('frais-recurrents', event)">Frais Récurrents</div>
+  <div class="nav-tab" onclick="showTab('resume', event)">Résumé & Projection</div>
+</div>
+
+<div class="main">
+
+  <!-- ===== MATERIEL ===== -->
+  <div class="section active" id="tab-materiel">
+    <div class="section-header">
+      <h2>Matériel</h2>
+      <span class="section-total">Total matériel : <strong id="total-ca-an">0 €</strong></span>
+    </div>
+    <div class="table-wrap">
+      <table id="table-materiel">
+        <thead>
+          <tr>
+            <th style="min-width:160px">Produit</th>
+            <th class="num" style="width:65px">Qté</th>
+            <th class="num" style="width:90px">Prix HT (€)</th>
+            <th class="num" style="width:110px">Prix TTC (€)</th>
+            <th class="num" style="width:110px">Prix location (€)</th>
+            <th style="min-width:160px">BECAREFULL ARTUNG</th>
+            <th style="min-width:160px">Commentaire</th>
+            <th style="min-width:160px">Lien</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-materiel"></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="2"><strong>TOTAL</strong></td>
+            <td class="calc" id="mat-total-ht">0,00 €</td>
+            <td class="calc" id="mat-total-ttc">0,00 €</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="table-footer">
+      <button class="btn btn-green" onclick="addMaterielRow()">+ Ajouter un produit</button>
+      <button class="btn btn-outline" onclick="resetDefaults()">Réinitialiser les valeurs par défaut</button>
+    </div>
+  </div>
+
+  <!-- ===== FRAIS FIXES ===== -->
+  <div class="section" id="tab-frais-fixes">
+    <div class="section-header">
+      <h2>Frais Fixes (Année 1)</h2>
+      <span class="section-total">Total : <strong id="total-frais-fixes">0 €</strong></span>
+    </div>
+    <div class="alert alert-info">Ces frais sont des dépenses ponctuelles engagées uniquement la première année (création de société, etc.).</div>
+    <div class="table-wrap">
+      <table id="table-fixes">
+        <thead>
+          <tr>
+            <th style="min-width:260px">Intitulé</th>
+            <th class="num" style="width:120px">Prix (€)</th>
+            <th style="min-width:200px">Remarque</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-fixes"></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td class="calc" id="fixes-total">0,00 €</td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="table-footer">
+      <button class="btn btn-green" onclick="addFixeRow()">+ Ajouter un frais fixe</button>
+    </div>
+  </div>
+
+  <!-- ===== FRAIS RECURRENTS ===== -->
+  <div class="section" id="tab-frais-recurrents">
+    <div class="section-header">
+      <h2>Frais Récurrents</h2>
+      <span class="section-total">Total annuel : <strong id="total-frais-rec">0 €</strong></span>
+    </div>
+    <div class="table-wrap">
+      <table id="table-rec">
+        <thead>
+          <tr>
+            <th style="min-width:220px">Intitulé</th>
+            <th class="num" style="width:130px">Prix mensuel (€)</th>
+            <th class="num" style="width:130px">Prix annuel (€)</th>
+            <th style="min-width:220px">Remarque</th>
+            <th style="min-width:160px">Lien</th>
+            <th style="width:50px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-rec"></tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td class="calc" id="rec-total-mois">0,00 €</td>
+            <td class="calc" id="rec-total-an">0,00 €</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="table-footer">
+      <button class="btn btn-green" onclick="addRecRow()">+ Ajouter un frais récurrent</button>
+    </div>
+  </div>
+
+  <!-- ===== RESUME ===== -->
+  <div class="section" id="tab-resume">
+    <div class="section-header">
+      <h2>Résumé & Projection</h2>
+    </div>
+    <div class="summary-grid">
+
+      <div class="kpi-card">
+        <div class="kpi-header">Revenus</div>
+        <div class="kpi-body">
+          <div class="kpi-row">
+            <span class="kpi-label">CA annuel (locations)</span>
+            <span class="kpi-value positive" id="sum-ca">0 €</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">Investissement matériel</div>
+        <div class="kpi-body">
+          <div class="kpi-row">
+            <span class="kpi-label">Total achat matériel</span>
+            <span class="kpi-value negative" id="sum-achat">0 €</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">Charges annuelles</div>
+        <div class="kpi-body">
+          <div class="kpi-row">
+            <span class="kpi-label">Frais fixes (année 1 seulement)</span>
+            <span class="kpi-value negative" id="sum-fixes-display">0 €</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Frais récurrents annuels</span>
+            <span class="kpi-value negative" id="sum-rec-display">0 €</span>
+          </div>
+          <div class="kpi-row highlight">
+            <span class="kpi-label">Total charges année 1</span>
+            <span class="kpi-value negative" id="sum-charges-an1">0 €</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Total charges années suivantes</span>
+            <span class="kpi-value negative" id="sum-charges-suivantes">0 €</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">Fiscalité — Impôt sur les sociétés</div>
+        <div class="kpi-body">
+          <div class="alert alert-warning" style="margin:10px;">15% jusqu'à 42 500 € de bénéfice, 25% au-delà</div>
+          <div class="kpi-row">
+            <span class="kpi-label">Bénéfice avant IS (année 1)</span>
+            <span class="kpi-value neutral" id="sum-benef-an1">0 €</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">IS estimé (année 1)</span>
+            <span class="kpi-value negative" id="sum-is-an1">0 €</span>
+          </div>
+          <div class="kpi-row highlight">
+            <span class="kpi-label">Bénéfice net année 1</span>
+            <span class="kpi-value" id="sum-net-an1">0 €</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="padding: 0 20px 20px;">
+      <div class="kpi-card">
+        <div class="kpi-header">Projection pluriannuelle</div>
+        <div class="years-grid" id="years-grid"></div>
+        <div class="alert alert-info" style="margin: 0 16px 16px;">Projection basée sur le CA et les frais récurrents actuels. Année 1 inclut les frais fixes de création.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ================= DATA =================
+const DATA_VERSION = 2;
+let data = {
+  version: DATA_VERSION,
+  materiel: [],
+  fixes: [],
+  rec: []
+};
+
+// ================= UTILS =================
+function fmt(n) {
+  if (isNaN(n) || n === null) return '0,00 €';
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function fmtShort(n) {
+  if (isNaN(n) || n === null) return '0 €';
+  return Math.round(n).toLocaleString('fr-FR') + ' €';
+}
+function num(s) {
+  const v = parseFloat(String(s).replace(',', '.'));
+  return isNaN(v) ? 0 : v;
+}
+function calcIS(benef) {
+  if (benef <= 0) return 0;
+  if (benef <= 42500) return benef * 0.15;
+  return 42500 * 0.15 + (benef - 42500) * 0.25;
+}
+
+// ================= TABS =================
+function showTab(name, evt) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (evt && evt.target) evt.target.classList.add('active');
+  if (name === 'resume') updateSummary();
+}
+
+// ================= MATERIEL =================
+function addMaterielRow(d) {
+  const row = d || { produit: '', nombre: 0, prix_ht: 0, prix_ttc: 0, prix_location: 0, attention: '', commentaire: '', lien: '' };
+  data.materiel.push(row);
+  renderMateriel();
+}
+
+function renderMateriel() {
+  const tbody = document.getElementById('tbody-materiel');
+  tbody.innerHTML = '';
+  data.materiel.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${esc(row.produit)}" oninput="data.materiel[${i}].produit=this.value;calcMateriel()" placeholder="Nom du produit"></td>
+      <td><input type="number" value="${row.nombre}" min="0" oninput="data.materiel[${i}].nombre=this.value;calcMateriel()" style="width:55px"></td>
+      <td><input type="number" value="${row.prix_ht}" min="0" step="0.01" oninput="data.materiel[${i}].prix_ht=this.value;data.materiel[${i}].prix_ttc=(num(this.value)*1.2).toFixed(2);calcMateriel()" style="width:80px"></td>
+      <td><input type="number" value="${row.prix_ttc}" min="0" step="0.01" oninput="data.materiel[${i}].prix_ttc=this.value;data.materiel[${i}].prix_ht=(num(this.value)/1.2).toFixed(2);calcMateriel()" style="width:90px"></td>
+      <td><input type="number" value="${row.prix_location}" min="0" step="0.01" oninput="data.materiel[${i}].prix_location=this.value;calcMateriel()" style="width:90px"></td>
+      <td class="comment-cell"><input type="text" value="${esc(row.attention)}" oninput="data.materiel[${i}].attention=this.value" placeholder="BECAREFULL ARTUNG"></td>
+      <td class="comment-cell"><input type="text" value="${esc(row.commentaire)}" oninput="data.materiel[${i}].commentaire=this.value" placeholder="Commentaire"></td>
+      <td class="link-cell">${row.lien ? `<a href="${esc(row.lien)}" target="_blank">Voir lien</a><br>` : ''}<input type="url" value="${esc(row.lien)}" oninput="data.materiel[${i}].lien=this.value;renderMateriel()" placeholder="https://..."></td>
+      <td><button class="btn btn-red" onclick="delMateriel(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  calcMateriel();
+}
+
+function calcMateriel() {
+  let totalHt = 0, totalTtc = 0;
+  data.materiel.forEach(row => {
+    totalHt += num(row.nombre) * num(row.prix_ht);
+    totalTtc += num(row.nombre) * num(row.prix_ttc);
+  });
+  document.getElementById('mat-total-ht').textContent = fmt(totalHt);
+  document.getElementById('mat-total-ttc').textContent = fmt(totalTtc);
+  document.getElementById('total-ca-an').textContent = fmtShort(totalTtc);
+  saveData();
+}
+
+function delMateriel(i) {
+  data.materiel.splice(i, 1);
+  renderMateriel();
+}
+
+// ================= FRAIS FIXES =================
+function addFixeRow(d) {
+  const row = d || { intitule: '', prix: 0, remarque: '' };
+  data.fixes.push(row);
+  renderFixes();
+}
+
+function renderFixes() {
+  const tbody = document.getElementById('tbody-fixes');
+  tbody.innerHTML = '';
+  data.fixes.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${esc(row.intitule)}" oninput="data.fixes[${i}].intitule=this.value" placeholder="Intitulé"></td>
+      <td><input type="number" value="${row.prix}" min="0" step="0.01" oninput="data.fixes[${i}].prix=this.value;calcFixes()" style="width:100px"></td>
+      <td><input type="text" value="${esc(row.remarque)}" oninput="data.fixes[${i}].remarque=this.value" placeholder="Remarque" class="remark-input"></td>
+      <td><button class="btn btn-red" onclick="delFixe(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  calcFixes();
+}
+
+function calcFixes() {
+  const total = data.fixes.reduce((s, r) => s + num(r.prix), 0);
+  document.getElementById('fixes-total').textContent = fmt(total);
+  document.getElementById('total-frais-fixes').textContent = fmtShort(total);
+  saveData();
+}
+
+function delFixe(i) {
+  data.fixes.splice(i, 1);
+  renderFixes();
+}
+
+// ================= FRAIS RECURRENTS =================
+function addRecRow(d) {
+  const row = d || { intitule: '', prix_mensuel: 0, prix_annuel_override: null, remarque: '', lien: '' };
+  data.rec.push(row);
+  renderRec();
+}
+
+function renderRec() {
+  const tbody = document.getElementById('tbody-rec');
+  tbody.innerHTML = '';
+  data.rec.forEach((row, i) => {
+    const annuel = row.prix_annuel_override !== null && row.prix_annuel_override !== '' ? num(row.prix_annuel_override) : num(row.prix_mensuel) * 12;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${esc(row.intitule)}" oninput="data.rec[${i}].intitule=this.value" placeholder="Intitulé"></td>
+      <td><input type="number" value="${row.prix_mensuel}" min="0" step="0.01" oninput="data.rec[${i}].prix_mensuel=this.value;data.rec[${i}].prix_annuel_override=null;calcRec()" style="width:100px"></td>
+      <td><input type="number" value="${annuel}" min="0" step="0.01" oninput="data.rec[${i}].prix_annuel_override=this.value;data.rec[${i}].prix_mensuel=this.value/12;calcRec()" style="width:100px"></td>
+      <td><input type="text" value="${esc(row.remarque)}" oninput="data.rec[${i}].remarque=this.value" placeholder="Remarque" class="remark-input"></td>
+      <td class="link-cell">${row.lien ? `<a href="${esc(row.lien)}" target="_blank">Voir</a><br>` : ''}<input type="url" value="${esc(row.lien)}" oninput="data.rec[${i}].lien=this.value;renderRec()" placeholder="https://..."></td>
+      <td><button class="btn btn-red" onclick="delRec(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  calcRec();
+}
+
+function calcRec() {
+  let totalMois = 0, totalAn = 0;
+  data.rec.forEach(row => {
+    const an = row.prix_annuel_override !== null && row.prix_annuel_override !== '' ? num(row.prix_annuel_override) : num(row.prix_mensuel) * 12;
+    totalMois += num(row.prix_mensuel);
+    totalAn += an;
+  });
+  document.getElementById('rec-total-mois').textContent = fmt(totalMois);
+  document.getElementById('rec-total-an').textContent = fmt(totalAn);
+  document.getElementById('total-frais-rec').textContent = fmtShort(totalAn);
+  saveData();
+}
+
+function delRec(i) {
+  data.rec.splice(i, 1);
+  renderRec();
+}
+
+// ================= SUMMARY =================
+function getCA() {
+  return data.materiel.reduce((s, r) => s + num(r.loc_mois) * num(r.prix_location) * 12, 0);
+}
+function getTotalAchat() {
+  return data.materiel.reduce((s, r) => s + num(r.nombre) * num(r.prix_ht), 0);
+}
+function getFixesTotal() {
+  return data.fixes.reduce((s, r) => s + num(r.prix), 0);
+}
+function getRecTotal() {
+  return data.rec.reduce((s, r) => {
+    return s + (r.prix_annuel_override !== null && r.prix_annuel_override !== '' ? num(r.prix_annuel_override) : num(r.prix_mensuel) * 12);
+  }, 0);
+}
+
+function updateSummary() {
+  const ca = getCA();
+  const achat = getTotalAchat();
+  const fixes = getFixesTotal();
+  const rec = getRecTotal();
+
+  const chargesAn1 = fixes + rec;
+  const chargesSuivantes = rec;
+
+  const benefAn1 = ca - chargesAn1;
+  const isAn1 = calcIS(benefAn1);
+  const netAn1 = benefAn1 - isAn1;
+
+  el('sum-ca', fmtShort(ca), ca > 0 ? 'positive' : 'neutral');
+  el('sum-achat', '-' + fmtShort(achat), achat > 0 ? 'negative' : 'neutral');
+  el('sum-fixes-display', '-' + fmtShort(fixes), fixes > 0 ? 'negative' : 'neutral');
+  el('sum-rec-display', '-' + fmtShort(rec), rec > 0 ? 'negative' : 'neutral');
+  el('sum-charges-an1', '-' + fmtShort(chargesAn1), 'negative');
+  el('sum-charges-suivantes', '-' + fmtShort(chargesSuivantes), 'negative');
+
+  el('sum-benef-an1', fmtShort(benefAn1), benefAn1 >= 0 ? 'positive' : 'negative');
+  el('sum-is-an1', '-' + fmtShort(isAn1), isAn1 > 0 ? 'negative' : 'neutral');
+  el('sum-net-an1', fmtShort(netAn1), netAn1 >= 0 ? 'positive' : 'negative');
+
+  // Years
+  const grid = document.getElementById('years-grid');
+  grid.innerHTML = '';
+  [1, 2, 3, 4].forEach(y => {
+    const charges = y === 1 ? chargesAn1 : chargesSuivantes;
+    const benef = ca - charges;
+    const is = calcIS(benef);
+    const net = benef - is;
+    const div = document.createElement('div');
+    div.className = 'year-card';
+    div.innerHTML = `
+      <div class="year-label">Année ${y}</div>
+      <div class="year-value ${net < 0 ? 'negative' : ''}">${fmtShort(net)}</div>
+      <div style="font-size:10px;opacity:0.6;margin-top:4px">CA ${fmtShort(ca)} / IS −${fmtShort(is)}</div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function el(id, val, cls) {
+  const e = document.getElementById(id);
+  if (!e) return;
+  e.textContent = val;
+  e.className = 'kpi-value ' + (cls || '');
+}
+
+// ================= PERSISTENCE =================
+function saveData() {
+  try { localStorage.setItem('bp_evenement_v2', JSON.stringify(data)); } catch(e) {}
+  const now = new Date();
+  document.getElementById('last-saved').textContent = 'Sauvegardé à ' + now.toLocaleTimeString('fr-FR');
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem('bp_evenement_v2');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.version === DATA_VERSION) {
+        data = parsed;
+      }
+    }
+  } catch(e) {}
+}
+
+function resetDefaults() {
+  try { localStorage.removeItem('bp_evenement_v2'); } catch (e) {}
+  data = { version: DATA_VERSION, materiel: [], fixes: [], rec: [] };
+  initDefaults();
+  renderMateriel();
+  renderFixes();
+  renderRec();
+  showTab('materiel');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function normalizeHeader(value) {
+  return String(value || '').toLowerCase().trim().replace(/[\s\u00A0]+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
+function findExcelField(header) {
+  const map = {
+    produit: ['produit', 'product', 'nom', 'article'],
+    nombre: ['qté', 'qte', 'quantite', 'nombre'],
+    prix_ht: ['prix ht', 'ht', 'prix hors taxe', 'prix_ht'],
+    prix_ttc: ['prix ttc', 'ttc', 'prix toutes taxes', 'prix_ttc'],
+    prix_location: ['prix location', 'location', 'prix_location'],
+    attention: ['attention', 'note', 'becarefull artung'],
+    commentaire: ['commentaire', 'remarque', 'description'],
+    lien: ['lien', 'url', 'site', 'site web']
+  };
+  for (const key in map) {
+    if (map[key].some(alias => header.includes(alias))) {
+      return key;
+    }
+  }
+  return null;
+}
+
+function importExcelFile() {
+  const input = document.getElementById('excel-file');
+  const file = input?.files?.[0];
+  if (!file) {
+    alert('Choisis d’abord un fichier Excel (.xlsx ou .xls).');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!rows || rows.length < 2) {
+      alert('Le fichier Excel est vide ou mal formaté.');
+      return;
+    }
+    const imported = parseExcelRows(rows);
+    if (!imported.length) {
+      alert('Aucune donnée Matériel reconnue dans ce fichier Excel. Vérifie les en-têtes.');
+      return;
+    }
+    data.materiel = imported;
+    renderMateriel();
+    saveData();
+    alert('Données Excel importées dans le tableau Matériel.');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseExcelRows(rows) {
+  const headers = rows[0].map(normalizeHeader);
+  const indices = {};
+  headers.forEach((header, index) => {
+    const field = findExcelField(header);
+    if (field) indices[field] = index;
+  });
+  if (!indices.produit) return [];
+  return rows.slice(1).map(row => {
+    const prix_ht = num(row[indices.prix_ht] ?? row[indices.ht] ?? 0);
+    const prix_ttc = num(row[indices.prix_ttc] ?? row[indices.ttc] ?? (prix_ht ? prix_ht * 1.2 : 0));
+    return {
+      produit: row[indices.produit] || '',
+      nombre: num(row[indices.nombre] || 0),
+      prix_ht: prix_ht,
+      prix_ttc: prix_ttc,
+      prix_location: num(row[indices.prix_location] || 0),
+      attention: row[indices.attention] || '',
+      commentaire: row[indices.commentaire] || '',
+      lien: row[indices.lien] || ''
+    };
+  }).filter(r => r.produit || r.prix_ht || r.prix_ttc || r.lien);
+}
+
+// ================= INIT =================
+function initDefaults() {
+  if (data.materiel.length === 0) {
+    const mats = [
+      { produit: 'Château Gonflable Crocodile', nombre: 1, prix_ht: 1985, prix_ttc: 2382, prix_location: 0, attention: '', commentaire: '', lien: 'https://www.jb-gonflables.fr/p/chateau-gonflable-crocodile' },
+      { produit: 'Frais de livraison château', nombre: 1, prix_ht: 149, prix_ttc: 178.8, prix_location: 0, attention: '', commentaire: '', lien: '' },
+      { produit: 'Groupe électrogène', nombre: 1, prix_ht: 341, prix_ttc: 409.2, prix_location: 0, attention: 'techno inverter (bruit) = 64 dB | Autonomie (+6/8h prix x2 ou bruillant)', commentaire: 'Prix affiché TTC sur le site | 6 à 8 heures d’autonomie', lien: 'https://www.manomano.fr/groupe-electrogene-2126?model_id=90648590&utm_source=chatgpt.com' },
+      { produit: 'Huile 4T', nombre: 1, prix_ht: 17.6, prix_ttc: 21.12, prix_location: 0, attention: '', commentaire: '', lien: 'https://www.leroymerlin.fr/produits/castrol-garden-4t-10w-30-1l-85712753.html?megaBoost=&at_medium=Search%2Bengines&at_source=google&at_campaign=fiche-gratuite&utm_source=chatgpt.com' },
+      { produit: 'Enrouleur (elec)', nombre: 1, prix_ht: 55.12, prix_ttc: 66.144, prix_location: 0, attention: 'section 3G2.5 mm² | IP44 (extérieur)', commentaire: 'Existe moins cher (30e) mais pas en simple cable et en 10m', lien: 'https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/?region_id=190300&utm_source=chatgpt.com' },
+      { produit: 'Jerican', nombre: 1, prix_ht: 11.12, prix_ttc: 13.344, prix_location: 0, attention: 'Consommation d’un château 10h -> 9 à 12 L', commentaire: '', lien: 'https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063?lpoid=ba75c3a0d3e15f0304b4129c1c0be580400b2256&utm_source=chatgpt.com&dataiads_variation=18-3_accessoires_0104-50-var13' },
+      { produit: 'Essence SP98', nombre: 0, prix_ht: 0, prix_ttc: 0, prix_location: 0, attention: 'Payé par le client (env 12L => 24e)', commentaire: '', lien: 'detroit ormuz' },
+      { produit: 'Plaque anti-vibration', nombre: 1, prix_ht: 9.2, prix_ttc: 11.04, prix_location: 0, attention: '', commentaire: 'Sous le groupe électrogène', lien: 'https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd?storeId=1418&utm_source=chatgpt.com' },
+      { produit: 'Bâche protection', nombre: 1, prix_ht: 8.8, prix_ttc: 10.56, prix_location: 0, attention: 'Humidité sol sal', commentaire: '', lien: 'https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction-Multi-Usage-Universelle/dp/B0CHJW6T4Y?source=ps-sl-shoppingads-lpcontext&ref_=fplfs&smid=A3JCY2WADSHXUL&utm_source=chatgpt.com&th=1' },
+      { produit: 'Lingette micro fibre', nombre: 1, prix_ht: 9.52, prix_ttc: 11.424, prix_location: 0, attention: '', commentaire: 'Pack de 20', lien: 'https://www.castorama.fr/lot-20-lavettes-microfibre-elephant-l-30-x-l-30cm-multicolore/3543534951587_CAFR.prd?storeId=1418&utm_source=chatgpt.com' },
+      { produit: 'Dégraissant produit', nombre: 1, prix_ht: 17.6, prix_ttc: 21.12, prix_location: 0, attention: '', commentaire: '', lien: 'https://www.leroymerlin.fr/produits/super-degraissant-force-pro-1000-bidon-5l-orlav-84001387.html?megaBoost=&at_medium=Search%2Bengines&at_source=google&at_campaign=fiche-gratuite&utm_source=chatgpt.com' },
+      { produit: 'Diable rigide STANDERS', nombre: 0, prix_ht: 0, prix_ttc: 0, prix_location: 0, attention: '', commentaire: '', lien: '' },
+    ];
+    data.materiel = mats;
+  }
+  if (data.fixes.length === 0) {
+    data.fixes = [
+      { intitule: 'Création SARL — Annonce légale', prix: 200, remarque: '' },
+      { intitule: 'Création SARL — Greffe / immatriculation', prix: 500, remarque: '' },
+    ];
+  }
+  if (data.rec.length === 0) {
+    data.rec = [
+      { intitule: 'Expert comptable', prix_mensuel: 0, prix_annuel_override: 2500, remarque: '', lien: '' },
+      { intitule: 'Responsabilité Civile Pro (RC Pro)', prix_mensuel: 75, prix_annuel_override: null, remarque: '', lien: '' },
+      { intitule: 'Assurance multirisque matériel pro', prix_mensuel: 19.5, prix_annuel_override: null, remarque: '6% du coût matériel', lien: '' },
+      { intitule: 'Compte bancaire pro', prix_mensuel: 10, prix_annuel_override: null, remarque: '', lien: '' },
+      { intitule: 'Hébergement', prix_mensuel: 0, prix_annuel_override: 70, remarque: '', lien: '' },
+      { intitule: 'Nom de domaine', prix_mensuel: 0, prix_annuel_override: 40, remarque: '', lien: '' },
+      { intitule: 'Essence groupe électrogène', prix_mensuel: 0, prix_annuel_override: 0, remarque: 'Mis dans le coût de la résa (11€/heure)', lien: '' },
+      { intitule: 'Essence/usure voiture livraison', prix_mensuel: 0, prix_annuel_override: 0, remarque: 'Mis dans le coût de la livraison', lien: '' },
+      { intitule: 'Local', prix_mensuel: 0, prix_annuel_override: 0, remarque: 'Maison Jo / parent steph ?', lien: '' },
+      { intitule: 'Huile moteur 4T', prix_mensuel: 16, prix_annuel_override: null, remarque: '', lien: '' },
+      { intitule: 'CT château', prix_mensuel: 0, prix_annuel_override: 300, remarque: '', lien: '' },
+    ];
+  }
+}
+
+window.addEventListener('load', () => {
+  loadData();
+  initDefaults();
+  renderMateriel();
+  renderFixes();
+  renderRec();
+});
+</script>
+</body>
+</html>

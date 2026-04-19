@@ -4,7 +4,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 // ── Correspondance onglet → clé DATA ─────────────────────────
-const TAB_MAP = {
+let TAB_MAP = {
   'chateau':            'chateauGonflable',      // géré par renderMultiSectionTab
   'photobooth':         'photobooth',            // géré par renderMultiSectionTab
   'frais-initiaux':     'fraisInitiaux',
@@ -16,7 +16,10 @@ const state = {
   page:         'detail',   // 'detail' | 'resume'
   tab:          'chateau',  // clé dans TAB_MAP
   sort:         { col: null, dir: 'asc' },
+  editMode:     false,       // true = édition inline active
   customBlocks: [],          // [{ id, intitule, montant, note }]
+  customTabs:   [],          // [{ id, label }] — onglets créés par l'utilisateur
+  customUnits:  {},          // { [tabId]: [{id, label, prixAchat, ...}] } — unités par tab custom
   // Unités château pour la simulation
   chateauUnits: [
     { id: 'main', label: 'Château principal', isMain: true, prixAchat: 2382.00, prixLivraison: 178.80, prixLocation: 300, locationsMois: 1 }
@@ -31,24 +34,25 @@ const state = {
 /* ════════════════════════════════════════════════════════════
    INITIALISATION
 ════════════════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  loadData();           // ← restaure l'état avant tout rendu
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('app-loader').classList.remove('hidden');
+  await loadFromAPI();   // charge depuis jsonbin (fallback localStorage)
+  document.getElementById('app-loader').classList.add('hidden');
 
   initNavigation();
   initTabs();
-  initSearch();
+  initEditMode();
   initModal();
   initCustomBlocks();
   initExport();
-  initChateauUnits();
-  initPhotoboothUnits();
+  initUnits();
   initSave();
+  initHistoryPanel();
 
   // Rendu initial
   renderTable();
   renderSummary();
-  renderChateauUnits();
-  renderPhotoboothUnits();
+  renderUnits();
   renderSimulator();
 });
 
@@ -80,49 +84,216 @@ function switchPage(page) {
    ONGLETS
 ════════════════════════════════════════════════════════════ */
 function initTabs() {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  bindStaticTabs();
+  initTabNewForm();
+}
+
+function bindStaticTabs() {
+  document.querySelectorAll('.tab-btn[data-tab]:not(.tab-btn-custom)').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+}
+
+function switchTab(tabKey) {
+  state.tab  = tabKey;
+  state.sort = { col: null, dir: 'asc' };
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => {
+    const active = b.dataset.tab === tabKey;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  renderTable();
+}
+
+function initTabNewForm() {
+  const addBtn  = document.getElementById('tab-add-btn');
+  const form    = document.getElementById('tab-new-form');
+  const input   = document.getElementById('tab-new-input');
+  const confirmBtn = document.getElementById('tab-new-confirm');
+  const cancel  = document.getElementById('tab-new-cancel');
+  if (!addBtn) return;
+
+  let selectedType = 'item';
+
+  form.querySelectorAll('.tab-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.tab  = btn.dataset.tab;
-      state.sort = { col: null, dir: 'asc' };
-      clearSearch();
-
-      document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.toggle('active', b === btn);
-        b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
-      });
-
-      renderTable();
+      selectedType = btn.dataset.type;
+      form.querySelectorAll('.tab-type-btn').forEach(b => b.classList.toggle('active', b === btn));
     });
   });
+
+  addBtn.addEventListener('click', () => {
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) { input.value = ''; input.focus(); }
+  });
+  cancel.addEventListener('click', () => form.classList.add('hidden'));
+  confirmBtn.addEventListener('click', () => {
+    const label = input.value.trim();
+    if (!label) { input.focus(); return; }
+    createCustomTab(label, selectedType);
+    form.classList.add('hidden');
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmBtn.click();
+    if (e.key === 'Escape') cancel.click();
+  });
+}
+
+/* ── Helpers pour créer les datasets de sections ────────────── */
+function makeInvestDataset(label, rows = []) {
+  return {
+    title: label, subtitle: 'Investissement — Initial — Matériel', accentClass: 'accent-cyan',
+    columns: [
+      { key: 'intitule',    label: 'Intitulé',   type: 'text'   },
+      { key: 'qte',         label: 'Qté',         type: 'number' },
+      { key: 'prixHT',      label: 'Prix HT',     type: 'price'  },
+      { key: 'prixTTC',     label: 'Prix TTC',    type: 'price'  },
+      { key: 'partage',     label: '1/n UN',      type: 'number' },
+      { key: 'commentaire', label: 'Commentaire', type: 'text'   },
+      { key: 'lien',        label: 'Lien',        type: 'link'   },
+      { key: 'coutParUnit', label: '/UN',          type: 'price',
+        compute: row => (row.prixHT || 0) / Math.max(1, parseInt(row.partage) || 1) }
+    ],
+    rows, totalPrixTTC: 0
+  };
+}
+function makeServiceDataset(label, rows = []) {
+  return {
+    title: label, subtitle: 'Frais de service — Par journée de location', accentClass: 'accent-cyan',
+    columns: [
+      { key: 'intitule',    label: 'Intitulé',    type: 'text'   },
+      { key: 'commentaire', label: 'Commentaire', type: 'text'   },
+      { key: 'usure',       label: 'Usure / loc', type: 'number' },
+      { key: 'prixHT',      label: 'Prix HT',     type: 'price'  },
+      { key: 'prixTTC',     label: 'Prix TTC',    type: 'price'  },
+      { key: 'coutParLoc',  label: 'Coût / loc',  type: 'price',
+        compute: row => (row.prixHT || 0) * (parseFloat(row.usure) || 0), isTotal: true }
+    ],
+    rows, totalPrixTTC: 0
+  };
+}
+function makeMaintenanceDataset(label, rows = []) {
+  return {
+    title: label, subtitle: 'Frais de maintenance — Par an', accentClass: 'accent-cyan',
+    columns: [
+      { key: 'intitule', label: 'Intitulé', type: 'text' },
+      { key: 'remarque', label: 'Remarque', type: 'text' },
+      { key: 'prixTTC',  label: 'HT/AN',    type: 'price', isTotal: true }
+    ],
+    rows, totalPrixTTC: 0
+  };
+}
+function makeFreisDataset(label, rows = []) {
+  return {
+    title: label, subtitle: 'Frais', accentClass: 'accent-orange',
+    columns: [
+      { key: 'intitule', label: 'Intitulé', type: 'text' },
+      { key: 'remarque', label: 'Remarque', type: 'text' },
+      { key: 'prixTTC',  label: 'HT/AN',    type: 'price', isTotal: true }
+    ],
+    rows, totalPrixTTC: 0
+  };
+}
+
+function createCustomTab(label, type = 'item') {
+  const id = 'custom_' + Date.now();
+  TAB_MAP[id] = id;
+
+  if (type === 'item') {
+    const investKey      = id + '_invest';
+    const serviceKey     = id + '_service';
+    const maintenanceKey = id + '_maintenance';
+    DATA[investKey]      = makeInvestDataset(label);
+    DATA[serviceKey]     = makeServiceDataset(label);
+    DATA[maintenanceKey] = makeMaintenanceDataset(label);
+    state.customTabs.push({
+      id, label, type: 'item',
+      sections: [
+        { dsKey: investKey,      label: `⚙️ ${label} — Investissement — Initial — Matériel`,        sortable: true  },
+        { dsKey: serviceKey,     label: `🔧 ${label} — Frais de service — Par journée de location`, sortable: false },
+        { dsKey: maintenanceKey, label: `🛠️ ${label} — Frais de maintenance — Par an`,              sortable: false }
+      ]
+    });
+  } else {
+    DATA[id] = makeFreisDataset(label);
+    state.customTabs.push({ id, label, type: 'frais' });
+  }
+
+  renderCustomTabButtons();
+  updateUnitTypeSelect();
+  switchTab(id);
+  scheduleAutoSave();
+}
+
+function renderCustomTabButtons() {
+  const header  = document.getElementById('tabs-header');
+  const addBtn  = document.getElementById('tab-add-btn');
+  // Supprimer les anciens boutons custom
+  header.querySelectorAll('.tab-btn-custom').forEach(b => b.remove());
+  // Réinsérer avant le bouton "+"
+  state.customTabs.forEach(({ id, label }) => {
+    const btn = document.createElement('button');
+    btn.className     = 'tab-btn tab-btn-custom';
+    btn.dataset.tab   = id;
+    btn.role          = 'tab';
+    btn.ariaSelected  = 'false';
+    btn.innerHTML     = `${escHtml(label)} <span class="tab-btn-del" data-tab-del="${id}" title="Supprimer">×</span>`;
+    btn.addEventListener('click', e => {
+      if (e.target.dataset.tabDel) { e.stopImmediatePropagation(); deleteCustomTab(id); return; }
+      switchTab(id);
+    });
+    header.insertBefore(btn, addBtn);
+  });
+}
+
+function deleteCustomTab(id) {
+  if (!confirm('Supprimer cet onglet et toutes ses données ?')) return;
+  state.customTabs = state.customTabs.filter(t => t.id !== id);
+  delete DATA[id];
+  delete DATA[id + '_invest'];
+  delete DATA[id + '_service'];
+  delete DATA[id + '_maintenance'];
+  delete state.customUnits[id];
+  delete TAB_MAP[id];
+  renderCustomTabButtons();
+  updateUnitTypeSelect();
+  if (state.tab === id) switchTab('chateau');
+  scheduleAutoSave();
 }
 
 
 /* ════════════════════════════════════════════════════════════
-   RECHERCHE / FILTRE
+   MODE ÉDITION / LECTURE SEULE
 ════════════════════════════════════════════════════════════ */
-function initSearch() {
-  const input = document.getElementById('search-input');
-  const clear  = document.getElementById('search-clear');
-
-  input.addEventListener('input', () => {
-    clear.classList.toggle('hidden', !input.value);
-    renderTable();
-  });
-
-  clear.addEventListener('click', () => {
-    clearSearch();
+function initEditMode() {
+  const btn = document.getElementById('edit-mode-btn');
+  if (!btn) return;
+  updateEditModeBtn(btn);
+  btn.addEventListener('click', () => {
+    state.editMode = !state.editMode;
+    updateEditModeBtn(btn);
     renderTable();
   });
 }
 
-function clearSearch() {
-  const input = document.getElementById('search-input');
-  input.value = '';
-  document.getElementById('search-clear').classList.add('hidden');
-}
-
-function getSearchTerm() {
-  return document.getElementById('search-input').value.trim().toLowerCase();
+function updateEditModeBtn(btn) {
+  if (state.editMode) {
+    btn.textContent = '🔒 Verrouiller';
+    btn.classList.add('edit-mode-active');
+    btn.title = 'Passer en lecture seule';
+  } else {
+    btn.textContent = '✏️ Modifier';
+    btn.classList.remove('edit-mode-active');
+    btn.title = 'Activer l\'édition des tableaux';
+    // Fermer le formulaire si ouvert
+    document.getElementById('tab-new-form')?.classList.add('hidden');
+  }
+  // Afficher / masquer les contrôles d'onglets selon le mode
+  const tabAddBtn = document.getElementById('tab-add-btn');
+  if (tabAddBtn) tabAddBtn.style.display = state.editMode ? 'inline-flex' : 'none';
+  document.querySelectorAll('.tab-btn-del').forEach(el => {
+    el.style.display = state.editMode ? 'inline' : 'none';
+  });
 }
 
 
@@ -161,12 +332,20 @@ function resolveComputedRows(rows) {
   });
 }
 
-/** Total annuel des frais de maintenance + frais récurrents (charges fixes) */
+/** Total annuel des frais de maintenance + frais récurrents (charges fixes) — tous types */
 function getTotalChargesFixesAnnuelles() {
-  const maintenance = DATA.fraisMaintenance.rows.reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
-  const recurrents  = resolveComputedRows(DATA.fraisRecurrentsAnnuels.rows)
+  // Château : maintenance + récurrents
+  const maintenanceCH = DATA.fraisMaintenance.rows.reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
+  const recurrents    = resolveComputedRows(DATA.fraisRecurrentsAnnuels.rows)
     .reduce((s, r) => s + (parseFloat(r.prixTTC) || 0), 0);
-  return maintenance + recurrents;
+  // Photobooth : maintenance
+  const maintenancePB = DATA.fraisMaintenancePhotobooth.rows.reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
+  // Custom item tabs : maintenance
+  const maintenanceCustom = state.customTabs.filter(t => t.type === 'item').reduce((s, tab) => {
+    const ds = DATA[tab.id + '_maintenance'];
+    return s + (ds ? ds.rows.reduce((ss,r) => ss + (parseFloat(r.prixTTC)||0), 0) : 0);
+  }, 0);
+  return maintenanceCH + recurrents + maintenancePB + maintenanceCustom;
 }
 
 /** Retourne la clé DATA correspondant à un objet dataset */
@@ -174,10 +353,8 @@ function getDatasetKey(ds) {
   return Object.keys(DATA).find(k => DATA[k] === ds) || null;
 }
 
-/** Recalcule les totaux statiques après édition d'une ligne */
+/** Recalcule les totaux statiques après édition ou ajout de ligne */
 function recomputeDataTotals() {
-  DATA.fraisRecurrent.totalCoutParLoc = DATA.fraisRecurrent.rows
-    .reduce((s,r) => s + (parseFloat(r.coutParLoc)||0), 0);
   DATA.fraisInitiaux.totalPrixTTC = DATA.fraisInitiaux.rows
     .reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
   DATA.fraisMaintenance.totalPrixTTC = DATA.fraisMaintenance.rows
@@ -205,22 +382,17 @@ function renderTable() {
     ]);
     return;
   }
+  // Onglets personnalisés de type "item" → multi-section
+  const customTab = state.customTabs.find(t => t.id === state.tab);
+  if (customTab?.type === 'item') {
+    renderMultiSectionTab(customTab.sections.map(s => ({
+      ds: DATA[s.dsKey], label: s.label, sortable: !!s.sortable
+    })));
+    return;
+  }
 
   const dataset = DATA[TAB_MAP[state.tab]];
-  const search  = getSearchTerm();
-  let   rows    = [...dataset.rows];
-
-  // Résolution des lignes calculées (ex : assurance multirisque)
-  rows = resolveComputedRows(rows);
-
-  // Filtre texte
-  if (search) {
-    rows = rows.filter(row =>
-      Object.values(row).some(v =>
-        v !== null && v !== undefined && String(v).toLowerCase().includes(search)
-      )
-    );
-  }
+  let   rows    = resolveComputedRows([...dataset.rows]);
 
   // Tri
   if (state.sort.col) {
@@ -235,14 +407,26 @@ function renderTable() {
     });
   }
 
-  const wrapper = document.getElementById('table-wrapper');
+  const wrapper  = document.getElementById('table-wrapper');
+  const dsKey    = TAB_MAP[state.tab];
+  const label    = `${dataset.title} — ${dataset.subtitle}`;
 
   if (rows.length === 0 && dataset.rows.length === 0) {
-    wrapper.innerHTML = `<div class="tab-empty-state">📋 Aucune donnée — à compléter prochainement.</div>`;
+    wrapper.innerHTML = `<div class="tab-section">
+      <div class="tab-section-header">${label}</div>
+      <div class="tab-empty-state">
+        📋 Aucune donnée
+        <button class="btn-primary btn-sm btn-add-first-row" data-dataset-key="${escHtml(dsKey)}">+ Ajouter une ligne</button>
+      </div>
+    </div>`;
+    wrapper.querySelector('.btn-add-first-row')?.addEventListener('click', () => addFirstRow(dsKey));
     return;
   }
 
-  wrapper.innerHTML = buildTableHTML(dataset, rows, TAB_MAP[state.tab]);
+  wrapper.innerHTML = `<div class="tab-section">
+    <div class="tab-section-header">${label}</div>
+    ${buildTableHTML(dataset, rows, dsKey)}
+  </div>`;
 
   // Tri au clic sur en-tête
   wrapper.querySelectorAll('th[data-col]').forEach(th => {
@@ -253,16 +437,9 @@ function renderTable() {
     });
   });
 
-  // Clic sur une ligne → modale
-  wrapper.querySelectorAll('tbody tr[data-idx]').forEach(tr => {
-    tr.addEventListener('click', () => {
-      const idx     = parseInt(tr.dataset.idx, 10);
-      const origIdx = parseInt(tr.dataset.origIdx, 10);
-      openModal(dataset, rows[idx], TAB_MAP[state.tab], origIdx);
-      wrapper.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
-      tr.classList.add('selected');
-    });
-  });
+  // Édition inline
+  const tbl = wrapper.querySelector('table');
+  if (tbl) attachInlineTableListeners(tbl, dsKey);
 }
 
 /**
@@ -270,15 +447,11 @@ function renderTable() {
  * @param {Array<{ds: Object, label: string, sortable: boolean}>} sections
  */
 function renderMultiSectionTab(sections) {
-  const search  = getSearchTerm();
   const wrapper = document.getElementById('table-wrapper');
 
-  // ── Résoudre et filtrer chaque section ───────────────────
+  // ── Résoudre chaque section ───────────────────────────────
   const resolved = sections.map(({ ds, label, sortable }) => {
     let rows = resolveComputedRows([...ds.rows]);
-    if (search) rows = rows.filter(row =>
-      Object.values(row).some(v => v !== null && v !== undefined &&
-        String(v).toLowerCase().includes(search)));
     if (sortable && state.sort.col) {
       const { col, dir } = state.sort;
       rows.sort((a, b) => {
@@ -294,7 +467,9 @@ function renderMultiSectionTab(sections) {
   // ── HTML ─────────────────────────────────────────────────
   wrapper.innerHTML = resolved.map(({ ds, label, rows, key }, i) => {
     const body = (rows.length === 0 && ds.rows.length === 0)
-      ? `<div class="tab-empty-state">📋 Aucune donnée — à compléter prochainement.</div>`
+      ? `<div class="tab-empty-state">📋 Aucune donnée
+           <button class="btn-primary btn-sm btn-add-first-row" data-dataset-key="${escHtml(key)}">+ Ajouter une ligne</button>
+         </div>`
       : buildTableHTML(ds, rows, key);
     return `<div class="tab-section" data-section-idx="${i}">
               <div class="tab-section-header">${label}</div>
@@ -316,16 +491,30 @@ function renderMultiSectionTab(sections) {
       });
     }
 
-    sec.querySelectorAll('tbody tr[data-idx]').forEach(tr => {
-      tr.addEventListener('click', () => {
-        const idx     = parseInt(tr.dataset.idx, 10);
-        const origIdx = parseInt(tr.dataset.origIdx, 10);
-        openModal(ds, rows[idx], key, origIdx);
-        wrapper.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
-        tr.classList.add('selected');
-      });
+    // Édition inline par section
+    const tbl = sec.querySelector('table');
+    if (tbl) attachInlineTableListeners(tbl, key);
+
+    // Bouton ajouter première ligne (état vide)
+    sec.querySelectorAll('.btn-add-first-row').forEach(btn => {
+      btn.addEventListener('click', () => addFirstRow(btn.dataset.datasetKey));
     });
   });
+}
+
+function addFirstRow(dsKey) {
+  const ds = DATA[dsKey];
+  if (!ds) return;
+  const newRow = {};
+  ds.columns.forEach(col => { if (!col.compute) newRow[col.key] = null; });
+  ds.rows.push(newRow);
+  state.editMode = true;
+  updateEditModeBtn(document.getElementById('edit-mode-btn'));
+  recomputeDataTotals();
+  renderTable();
+  renderSummary();
+  renderSimulator();
+  scheduleAutoSave();
 }
 
 
@@ -338,76 +527,245 @@ function fmtRaw(val) {
 
 function buildTableHTML(dataset, rows, datasetKey) {
   const { columns } = dataset;
+  const hasHT  = columns.some(c => c.key === 'prixHT');
+  const keyAttr = datasetKey ? ` data-dataset-key="${escHtml(datasetKey)}"` : '';
 
   /* ── En-têtes ─────────────────────────── */
-  const keyAttr = datasetKey ? ` data-dataset-key="${escHtml(datasetKey)}"` : '';
   let html = `<table${keyAttr}><thead><tr>`;
   columns.forEach(col => {
     const active = state.sort.col === col.key;
     const icon   = active ? (state.sort.dir === 'asc' ? '▲' : '▼') : '⇅';
-    const cls    = active ? `sort-${state.sort.dir}` : '';
-    html += `<th data-col="${col.key}" class="${cls}">
-               ${escHtml(col.label)} <span class="sort-icon">${icon}</span>
+    const cls    = [active ? `sort-${state.sort.dir}` : '', (col.compute || col.isTotal) ? 'col-total' : ''].filter(Boolean).join(' ');
+    // Datasets sans prixHT : prixTTC est édité en HT → relibellé
+    let label = col.label;
+    if (col.key === 'prixTTC' && !hasHT) label = label.replace('TTC', 'HT');
+    html += `<th data-col="${escHtml(col.key)}" class="${cls}">
+               ${escHtml(label)} <span class="sort-icon">${icon}</span>
              </th>`;
   });
+  if (state.editMode) html += `<th class="col-actions"></th>`;
   html += '</tr></thead>';
 
   /* ── Corps ────────────────────────────── */
+  const colSpan = columns.length + (state.editMode ? 1 : 0);
   html += '<tbody>';
   if (rows.length === 0) {
-    html += `<tr><td colspan="${columns.length}" style="text-align:center;padding:36px;color:#94a3b8;">
+    html += `<tr><td colspan="${colSpan}" style="text-align:center;padding:36px;color:#94a3b8;">
                Aucun résultat pour cette recherche.
              </td></tr>`;
   } else {
-    rows.forEach((row, idx) => {
-      const origIdx = dataset.rows.indexOf(row);
-      html += `<tr data-idx="${idx}" data-orig-idx="${origIdx}" title="Cliquer pour modifier">`;
+    rows.forEach(row => {
+      const origIdx    = dataset.rows.indexOf(row);
+      const isComputed = !!row.computed;
+      html += `<tr data-row-idx="${origIdx}"${isComputed ? ' class="row-computed"' : ''}>`;
       columns.forEach(col => {
-        const cellCls = col.type === 'price' ? 'price-cell' :
-                        col.type === 'number' ? 'num-cell' :
-                        col.type === 'text'   ? 'text-cell' : '';
-        const cellVal = col.compute ? col.compute(row) : row[col.key];
-        html += `<td class="${cellCls}">${renderCellShort(cellVal, col.type)}</td>`;
+        html += buildInlineCell(col, row, dataset, origIdx, hasHT);
       });
+      if (state.editMode) {
+        html += isComputed
+          ? `<td class="col-actions"></td>`
+          : `<td class="col-actions"><button class="btn-row-delete" data-row-idx="${origIdx}" title="Supprimer">✕</button></td>`;
+      }
       html += '</tr>';
     });
+  }
+  if (state.editMode && datasetKey) {
+    html += `<tr class="row-add"><td colspan="${colSpan}">
+               <button class="btn-add-row" data-dataset-key="${escHtml(datasetKey)}">+ Ajouter une ligne</button>
+             </td></tr>`;
   }
   html += '</tbody>';
 
   /* ── Pied (totaux) ────────────────────── */
   html += buildFooterHTML(dataset, rows);
-
   html += '</table>';
   return html;
 }
 
+function buildInlineCell(col, row, dataset, origIdx, hasHT) {
+  const cellCls = [
+    col.type === 'price'  ? 'price-cell' :
+    col.type === 'number' ? 'num-cell'   :
+    col.type === 'text'   ? 'text-cell'  : '',
+    (col.compute || col.isTotal) ? 'col-total' : ''
+  ].filter(Boolean).join(' ');
+
+  // Readonly : mode lecture seule global, colonne calculée, prixTTC quand prixHT existe, ou ligne computed
+  const isColReadonly = !state.editMode || !!row.computed || !!col.compute || (col.key === 'prixTTC' && hasHT);
+
+  if (isColReadonly) {
+    let val = col.compute ? col.compute(row) : row[col.key];
+    // prixTTC dans dataset sans prixHT → afficher en HT
+    if (col.key === 'prixTTC' && !hasHT && val != null) val = val / 1.2;
+    return `<td class="${cellCls} cell-readonly">${renderCellShort(val, col.type)}</td>`;
+  }
+
+  const val       = row[col.key];
+  // prixTTC sans prixHT : éditer en HT (÷1.2 affichage, ×1.2 stockage)
+  const htToTtc   = col.key === 'prixTTC' && !hasHT;
+  const updatesTtc = col.key === 'prixHT';
+  const displayVal = htToTtc && val != null ? val / 1.2 : val;
+
+  const multilineKeys = new Set(['avertissement', 'commentaire', 'remarque', 'note']);
+  let input;
+
+  if (col.type === 'price' || col.type === 'number') {
+    const numStr = displayVal != null ? parseFloat(displayVal).toFixed(2) : '';
+    input = `<input type="number" class="cell-input"
+                    data-row-idx="${origIdx}" data-col="${escHtml(col.key)}" data-coltype="${col.type}"
+                    ${htToTtc    ? 'data-ht-to-ttc="1"'   : ''}
+                    ${updatesTtc ? 'data-updates-ttc="1"' : ''}
+                    value="${numStr}"
+                    step="${col.type === 'price' ? '0.01' : '1'}" min="0">`;
+  } else if (col.type === 'link') {
+    input = `<input type="url" class="cell-input cell-input-link"
+                    data-row-idx="${origIdx}" data-col="${escHtml(col.key)}" data-coltype="${col.type}"
+                    value="${escHtml(String(val ?? ''))}">`;
+  } else if (multilineKeys.has(col.key)) {
+    input = `<textarea class="cell-input cell-textarea"
+                       data-row-idx="${origIdx}" data-col="${escHtml(col.key)}" data-coltype="${col.type}"
+                       rows="2">${escHtml(String(val ?? ''))}</textarea>`;
+  } else {
+    input = `<input type="text" class="cell-input"
+                    data-row-idx="${origIdx}" data-col="${escHtml(col.key)}" data-coltype="${col.type}"
+                    value="${escHtml(String(val ?? ''))}">`;
+  }
+
+  return `<td class="${cellCls} cell-editable">${input}</td>`;
+}
+
 function buildFooterHTML(dataset, rows) {
   const { columns } = dataset;
-
-  // Vérifie si on a au moins une colonne de type price avec total
+  const hasHT = columns.some(c => c.key === 'prixHT');
   const hasPriceCols = columns.some(c => c.type === 'price');
   if (!hasPriceCols) return '';
 
   let html = '<tfoot><tr>';
   columns.forEach((col, i) => {
-    if (i === 0) {
-      html += '<td><strong>Total</strong></td>';
-      return;
-    }
+    if (i === 0) { html += '<td><strong>Total</strong></td>'; return; }
     if (col.type !== 'price') { html += '<td></td>'; return; }
 
-    // 1) Cherche un total pré-défini : "total" + key capitalisé
-    const preKey = 'total' + col.key.charAt(0).toUpperCase() + col.key.slice(1);
-    if (dataset[preKey] !== undefined) {
-      html += `<td class="price-cell"><strong>${fmtPrice(dataset[preKey])}</strong></td>`;
+    const htToTtc = col.key === 'prixTTC' && !hasHT;
+    // Colonnes calculées (col.compute) → toujours dynamique
+    const preKey  = !col.compute && ('total' + col.key.charAt(0).toUpperCase() + col.key.slice(1));
+
+    let sum;
+    if (preKey && dataset[preKey] !== undefined) {
+      sum = htToTtc ? dataset[preKey] / 1.2 : dataset[preKey];
     } else {
-      // 2) Calcul dynamique depuis les rows visibles
-      const sum = rows.reduce((acc, r) => acc + (parseFloat(col.compute ? col.compute(r) : r[col.key]) || 0), 0);
-      html += `<td class="price-cell"><strong>${fmtPrice(sum)}</strong></td>`;
+      sum = rows.reduce((acc, r) => {
+        const v       = col.compute ? col.compute(r) : r[col.key];
+        const display = htToTtc && v != null ? v / 1.2 : v;
+        return acc + (parseFloat(display) || 0);
+      }, 0);
     }
+    const totalCls = (col.compute || col.isTotal) ? ' col-total' : '';
+    html += `<td class="price-cell${totalCls}"><strong>${fmtPrice(sum)}</strong></td>`;
   });
+  if (state.editMode) html += '<td></td>'; // colonne actions
   html += '</tr></tfoot>';
   return html;
+}
+
+/**
+ * Attache les listeners d'édition inline sur une table.
+ * @param {HTMLTableElement} tableEl
+ * @param {string}           datasetKey — clé dans DATA
+ */
+function attachInlineTableListeners(tableEl, datasetKey) {
+  const dataset = DATA[datasetKey];
+  if (!dataset) return;
+  const hasHT = dataset.columns.some(c => c.key === 'prixHT');
+
+  // ── Édition de cellule ────────────────────────────────────
+  tableEl.querySelectorAll('.cell-input').forEach(input => {
+    input.addEventListener('change', () => {
+      const rowIdx = parseInt(input.dataset.rowIdx, 10);
+      const row    = dataset.rows[rowIdx];
+      if (!row || row.computed) return;
+
+      const key     = input.dataset.col;
+      const coltype = input.dataset.coltype;
+      const raw     = input.value;
+
+      if (coltype === 'price' || coltype === 'number') {
+        const num = raw === '' ? null : parseFloat(raw);
+        if (input.dataset.htToTtc) {
+          // Utilisateur saisit HT → stocker TTC
+          row[key] = num != null ? Math.round(num * 1.2 * 100) / 100 : null;
+        } else {
+          row[key] = num;
+          if (input.dataset.updatesTtc) {
+            // prixHT modifié → recalculer prixTTC dans la ligne
+            row.prixTTC = num != null ? Math.round(num * 1.2 * 100) / 100 : null;
+            const tr = input.closest('tr');
+            if (tr) {
+              tr.querySelectorAll('td.cell-readonly.price-cell').forEach(td => {
+                td.innerHTML = renderCellShort(row.prixTTC, 'price');
+              });
+            }
+          }
+        }
+      } else {
+        row[key] = raw === '' ? null : raw;
+      }
+
+      recomputeDataTotals();
+      // Met à jour uniquement le pied (préserve le focus)
+      const tfoot = tableEl.querySelector('tfoot');
+      if (tfoot) {
+        const tmp = document.createElement('table');
+        tmp.innerHTML = buildFooterHTML(dataset, dataset.rows);
+        const newFoot = tmp.querySelector('tfoot');
+        if (newFoot) tfoot.replaceWith(newFoot);
+      }
+      renderSummary();
+      renderSimulator();
+      scheduleAutoSave();
+    });
+  });
+
+  // ── Clic sur ligne → ouvrir modal détail ────────────────
+  tableEl.querySelectorAll('tbody tr[data-row-idx]').forEach(tr => {
+    tr.addEventListener('click', e => {
+      if (state.editMode) return;
+      if (e.target.closest('a, button, input, textarea, select')) return;
+      const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+      const row = dataset.rows[rowIdx];
+      if (!row) return;
+      openModal(dataset, row, datasetKey, rowIdx);
+    });
+  });
+
+  // ── Suppression de ligne ──────────────────────────────────
+  tableEl.querySelectorAll('.btn-row-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rowIdx = parseInt(btn.dataset.rowIdx, 10);
+      dataset.rows.splice(rowIdx, 1);
+      recomputeDataTotals();
+      renderTable();
+      renderSummary();
+      renderSimulator();
+      scheduleAutoSave();
+    });
+  });
+
+  // ── Ajout de ligne ────────────────────────────────────────
+  tableEl.querySelectorAll('.btn-add-row').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.datasetKey;
+      const ds  = DATA[key];
+      if (!ds) return;
+      const newRow = {};
+      ds.columns.forEach(col => { newRow[col.key] = null; });
+      ds.rows.push(newRow);
+      recomputeDataTotals();
+      renderTable();
+      renderSummary();
+      renderSimulator();
+      scheduleAutoSave();
+    });
+  });
 }
 
 
@@ -603,27 +961,33 @@ function buildTooltip(items) {
 }
 
 function renderSummary() {
-  // TTC → HT (TVA 20 %)
   const toHT = v => (parseFloat(v) || 0) / 1.2;
+  const unitInvest = u => (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0);
 
-  const investChateaux    = state.chateauUnits.reduce(
-    (s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
-  const investPhotobooths = state.photoboothUnits.reduce(
-    (s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
-  const investTotal  = investChateaux + investPhotobooths;
-  const fraisInitTTC  = DATA.fraisInitiaux.totalPrixTTC;
-  const nbChateaux    = state.chateauUnits.length;
-  const nbPhotobooths = state.photoboothUnits.length;
+  // ── Investissement — tous types ──────────────────────────────
+  const investChateaux    = state.chateauUnits.reduce((s, u) => s + unitInvest(u), 0);
+  const investPhotobooths = state.photoboothUnits.reduce((s, u) => s + unitInvest(u), 0);
+  const investCustom      = state.customTabs.filter(t => t.type === 'item').reduce((s, tab) =>
+    s + (state.customUnits[tab.id] || []).reduce((ss, u) => ss + unitInvest(u), 0), 0);
+  const investTotal = investChateaux + investPhotobooths + investCustom;
+  const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
 
-  const equipLabel = [
-    nbChateaux   ? `${nbChateaux} château${nbChateaux > 1 ? 'x' : ''}`       : '',
-    nbPhotobooths ? `${nbPhotobooths} photobooth${nbPhotobooths > 1 ? 's' : ''}` : ''
-  ].filter(Boolean).join(', ') || 'aucun équipement';
+  // Labels équipements
+  const equipParts = [];
+  if (state.chateauUnits.length)    equipParts.push(`${state.chateauUnits.length} château${state.chateauUnits.length>1?'x':''}`);
+  if (state.photoboothUnits.length) equipParts.push(`${state.photoboothUnits.length} photobooth${state.photoboothUnits.length>1?'s':''}`);
+  state.customTabs.filter(t => t.type === 'item').forEach(tab => {
+    const n = (state.customUnits[tab.id] || []).length;
+    if (n) equipParts.push(`${n} ${tab.label}`);
+  });
+  const equipLabel = equipParts.join(', ') || 'aucun équipement';
 
-  // ── Tooltips fixes ───────────────────────────────────────────
+  // ── Tooltip frais initiaux ───────────────────────────────────
   const tooltipFraisInit = buildTooltip(
     DATA.fraisInitiaux.rows.map(r => ({ label: r.intitule, price: toHT(r.prixTTC) }))
   );
+
+  // ── Tooltip investissement équipements ───────────────────────
   const tooltipEquip = buildTooltip([
     ...state.chateauUnits.flatMap(u => [
       { label: `🏰 ${u.label}`,  price: toHT(parseFloat(u.prixAchat)     || 0) },
@@ -632,50 +996,74 @@ function renderSummary() {
     ...state.photoboothUnits.flatMap(u => [
       { label: `📷 ${u.label}`,  price: toHT(parseFloat(u.prixAchat)     || 0) },
       { label: `🚚 Livraison`,   price: toHT(parseFloat(u.prixLivraison) || 0) }
-    ])
+    ]),
+    ...state.customTabs.filter(t => t.type === 'item').flatMap(tab =>
+      (state.customUnits[tab.id] || []).flatMap(u => [
+        { label: `📦 ${u.label}`,  price: toHT(parseFloat(u.prixAchat)     || 0) },
+        { label: `🚚 Livraison`,   price: toHT(parseFloat(u.prixLivraison) || 0) }
+      ])
+    )
   ]);
+
+  // ── Tooltip charges fixes / an — tous types ──────────────────
   const tooltipCharges = buildTooltip([
-    ...DATA.fraisMaintenance.rows.map(r => ({ label: r.intitule, price: toHT(r.prixTTC) })),
-    ...resolveComputedRows(DATA.fraisRecurrentsAnnuels.rows).map(r => ({ label: r.intitule, price: toHT(r.prixTTC) }))
+    ...DATA.fraisMaintenance.rows.map(r => ({ label: `🏰 ${r.intitule}`, price: toHT(r.prixTTC) })),
+    ...resolveComputedRows(DATA.fraisRecurrentsAnnuels.rows).map(r => ({ label: r.intitule, price: toHT(r.prixTTC) })),
+    ...DATA.fraisMaintenancePhotobooth.rows.map(r => ({ label: `📷 ${r.intitule}`, price: toHT(r.prixTTC) })),
+    ...state.customTabs.filter(t => t.type === 'item').flatMap(tab => {
+      const ds = DATA[tab.id + '_maintenance'];
+      return ds ? ds.rows.map(r => ({ label: `📦 ${tab.label} — ${r.intitule}`, price: toHT(r.prixTTC) })) : [];
+    })
   ]);
 
-  // ── Cartes "Charges de location" — agrégées par type ────────
-  const coutParLocHTChateaux = DATA.fraisRecurrent.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
-  const totalChargesVarChateaux = state.chateauUnits.reduce((s, u) => {
-    return s + coutParLocHTChateaux * (parseFloat(u.locationsMois) || 0) * 12;
-  }, 0);
-  const totalLocsAnChateaux = state.chateauUnits.reduce((s, u) => s + (parseFloat(u.locationsMois) || 0) * 12, 0);
-  const tooltipChateauLoc = buildTooltip(
-    DATA.fraisRecurrent.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) }))
-  );
-  const chateauLocCard = state.chateauUnits.length ? `
-    <div class="summary-card accent-green">
-      <div class="sc-top">
-        <div class="sc-label">🏰 Châteaux — charges de location</div>
-        ${tooltipChateauLoc}
-      </div>
-      <div class="sc-value">${fmtPrice(totalChargesVarChateaux)}</div>
-      <div class="sc-sub">HT — ${totalLocsAnChateaux} loc/an · ${nbChateaux} château${nbChateaux > 1 ? 'x' : ''}</div>
-    </div>` : '';
+  // ── Charges de location — agrégées tous types ────────────────
+  const serviceTypes = [];
 
-  const coutLocPhotobooth = DATA.fraisServicePhotobooth.rows.reduce((s, r) => s + (parseFloat(r.coutParLoc) || 0), 0);
-  const totalChargesVarPhotobooths = state.photoboothUnits.reduce((s, u) => {
-    return s + coutLocPhotobooth * (parseFloat(u.locationsMois) || 0) * 12;
-  }, 0);
-  const totalLocsAnPhotobooths = state.photoboothUnits.reduce((s, u) => s + (parseFloat(u.locationsMois) || 0) * 12, 0);
-  const tooltipPhotoboothLoc = buildTooltip(
-    DATA.fraisServicePhotobooth.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) || toHT(r.coutParLoc) }))
-  );
-  const photoboothLocCard = state.photoboothUnits.length ? `
-    <div class="summary-card accent-purple">
-      <div class="sc-top">
-        <div class="sc-label">📷 Photobooths — charges de location</div>
-        ${tooltipPhotoboothLoc}
-      </div>
-      <div class="sc-value">${fmtPrice(totalChargesVarPhotobooths)}</div>
-      <div class="sc-sub">HT — ${totalLocsAnPhotobooths} loc/an · ${nbPhotobooths} photobooth${nbPhotobooths > 1 ? 's' : ''}</div>
-    </div>` : '';
+  if (state.chateauUnits.length) {
+    const coutLoc   = chateauCoutParLoc();
+    const totalVar  = state.chateauUnits.reduce((s, u) => s + coutLoc * (parseFloat(u.locationsMois)||0) * 12, 0);
+    const totalLocs = state.chateauUnits.reduce((s, u) => s + (parseFloat(u.locationsMois)||0) * 12, 0);
+    const details   = DATA.fraisRecurrent.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) }));
+    serviceTypes.push({ icon: '🏰', label: `${state.chateauUnits.length} château${state.chateauUnits.length>1?'x':''}`, totalVar, totalLocs, details });
+  }
 
+  if (state.photoboothUnits.length) {
+    const coutLoc   = photoboothCoutParLoc();
+    const totalVar  = state.photoboothUnits.reduce((s, u) => s + coutLoc * (parseFloat(u.locationsMois)||0) * 12, 0);
+    const totalLocs = state.photoboothUnits.reduce((s, u) => s + (parseFloat(u.locationsMois)||0) * 12, 0);
+    const details   = DATA.fraisServicePhotobooth.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) }));
+    serviceTypes.push({ icon: '📷', label: `${state.photoboothUnits.length} photobooth${state.photoboothUnits.length>1?'s':''}`, totalVar, totalLocs, details });
+  }
+
+  state.customTabs.filter(t => t.type === 'item').forEach(tab => {
+    const units = state.customUnits[tab.id] || [];
+    if (!units.length) return;
+    const coutLoc   = customCoutParLoc(tab.id);
+    const totalVar  = units.reduce((s, u) => s + coutLoc * (parseFloat(u.locationsMois)||0) * 12, 0);
+    const totalLocs = units.reduce((s, u) => s + (parseFloat(u.locationsMois)||0) * 12, 0);
+    const ds      = DATA[tab.id + '_service'];
+    const details = ds ? ds.rows.map(r => ({ label: r.intitule, price: (r.prixHT||0)*(parseFloat(r.usure)||0) })) : [];
+    serviceTypes.push({ icon: '📦', label: `${units.length} ${tab.label}`, totalVar, totalLocs, details });
+  });
+
+  const totalChargesLocAll = serviceTypes.reduce((s, t) => s + t.totalVar, 0);
+  const tooltipLocAll = buildTooltip(
+    serviceTypes.map(t => ({ label: `${t.icon} ${t.label} · ${t.totalLocs} loc/an`, price: t.totalVar }))
+  );
+  const locSubLabel = serviceTypes.map(t => `${t.icon} ${t.label}`).join(', ') || '—';
+
+  const chargesLocCard = serviceTypes.length
+    ? `<div class="summary-card accent-green">
+        <div class="sc-top">
+          <div class="sc-label">Charges de location / an</div>
+          ${tooltipLocAll}
+        </div>
+        <div class="sc-value">${fmtPrice(totalChargesLocAll)}</div>
+        <div class="sc-sub">HT — ${locSubLabel}</div>
+      </div>`
+    : '<span class="bp-group-empty">Aucune unité configurée</span>';
+
+  // ── Rendu ────────────────────────────────────────────────────
   document.getElementById('summary-grid').innerHTML = `
     <div class="bp-group">
       <div class="bp-group-label">Fixe</div>
@@ -700,10 +1088,7 @@ function renderSummary() {
     </div>
     <div class="bp-group">
       <div class="bp-group-label">Charges de location</div>
-      <div class="bp-group-cards">
-        ${chateauLocCard}${photoboothLocCard}
-        ${!chateauLocCard && !photoboothLocCard ? '<span class="bp-group-empty">Aucune unité configurée</span>' : ''}
-      </div>
+      <div class="bp-group-cards">${chargesLocCard}</div>
     </div>
     <div class="bp-group">
       <div class="bp-group-label">Par année</div>
@@ -728,19 +1113,22 @@ function sumCol(rows, key) {
 }
 
 function updateGrandTotal() {
-  const investTTC = [
+  const allUnits  = [
     ...state.chateauUnits,
-    ...state.photoboothUnits
-  ].reduce((s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
-  const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
-  const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
-  const grandTotal   = investTTC + fraisInitTTC + customTotal;
-
-  const breakdownParts = [
-    `Matériel ${fmtPrice(investTTC)}`,
-    `Frais init. ${fmtPrice(fraisInitTTC)}`
+    ...state.photoboothUnits,
+    ...state.customTabs.filter(t => t.type === 'item').flatMap(tab => state.customUnits[tab.id] || [])
   ];
-  if (customTotal > 0) breakdownParts.push(`Blocs perso ${fmtPrice(customTotal)}`);
+  const investTTC = allUnits.reduce((s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
+  const fraisInitTTC = DATA.fraisInitiaux.rows.reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
+  const chargesFixesAn = getTotalChargesFixesAnnuelles();
+  const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
+  const grandTotal   = investTTC + fraisInitTTC + chargesFixesAn + customTotal;
+
+  const breakdownParts = [];
+  if (investTTC     > 0) breakdownParts.push(`Équipements ${fmtPrice(investTTC)}`);
+  if (fraisInitTTC  > 0) breakdownParts.push(`Frais init. ${fmtPrice(fraisInitTTC)}`);
+  if (chargesFixesAn > 0) breakdownParts.push(`Charges fixes/an ${fmtPrice(chargesFixesAn)}`);
+  if (customTotal   > 0) breakdownParts.push(`Blocs ${fmtPrice(customTotal)}`);
 
   document.getElementById('grand-total').innerHTML = `
     <div>
@@ -759,34 +1147,94 @@ function updateGrandTotal() {
    SECTION "MES CHÂTEAUX" — unités configurables
 ════════════════════════════════════════════════════════════ */
 
-/** Initialise le bouton "Ajouter un château" */
-function initChateauUnits() {
-  document.getElementById('add-chateau-btn').addEventListener('click', () => {
-    const id = Date.now();
-    state.chateauUnits.push({
-      id,
-      label: `Château ${state.chateauUnits.length + 1}`,
-      isMain: false,
-      prixAchat: 0,
-      prixLivraison: 0,
-      prixLocation: 150,
-      locationsMois: 4
-    });
-    renderChateauUnits();
-    renderSummary();
-    renderSimulator();
-    updateGrandTotal();
-    scheduleAutoSave();
+/** Initialise la section unifiée "Mes Équipements" */
+function initUnits() {
+  const addBtn    = document.getElementById('add-unit-btn');
+  const form      = document.getElementById('unit-new-form');
+  const confirmBtn = document.getElementById('unit-new-confirm');
+  const cancelBtn  = document.getElementById('unit-new-cancel');
+  if (!addBtn) return;
+
+  updateUnitTypeSelect();   // populer avec les onglets custom existants
+
+  addBtn.addEventListener('click', () => form.classList.toggle('hidden'));
+  cancelBtn.addEventListener('click', () => form.classList.add('hidden'));
+  confirmBtn.addEventListener('click', () => {
+    const sel = document.getElementById('unit-type-select');
+    addUnit(sel?.value || 'chateau');
+    form.classList.add('hidden');
   });
 }
 
-/** Supprime une unité non-principale et re-rend */
-function removeChateauUnit(id) {
-  state.chateauUnits = state.chateauUnits.filter(u => String(u.id) !== String(id));
-  renderChateauUnits();
+/** Met à jour les options du select avec les onglets custom de type item */
+function updateUnitTypeSelect() {
+  const sel = document.getElementById('unit-type-select');
+  if (!sel) return;
+  // Retirer les options custom précédentes
+  sel.querySelectorAll('option[data-custom]').forEach(o => o.remove());
+  // Ajouter les onglets custom de type item
+  state.customTabs.filter(t => t.type === 'item').forEach(t => {
+    const opt = document.createElement('option');
+    opt.value       = t.id;
+    opt.dataset.custom = '1';
+    opt.textContent = `📦 ${t.label}`;
+    sel.appendChild(opt);
+  });
+}
+
+function addUnit(type) {
+  if (type === 'chateau') {
+    state.chateauUnits.push({
+      id: Date.now(),
+      label: `Château ${state.chateauUnits.length + 1}`,
+      isMain: false,
+      prixAchat: 0, prixLivraison: 0, prixLocation: 150, locationsMois: 4
+    });
+  } else if (type === 'photobooth') {
+    state.photoboothUnits.push({
+      id: Date.now(),
+      label: `Photobooth ${state.photoboothUnits.length + 1}`,
+      prixAchat: 0, prixLivraison: 0, prixLocation: 100, locationsMois: 4
+    });
+  } else {
+    // Onglet custom de type item
+    const tab = state.customTabs.find(t => t.id === type);
+    if (!tab) return;
+    if (!state.customUnits[type]) state.customUnits[type] = [];
+    const n = state.customUnits[type].length + 1;
+    state.customUnits[type].push({
+      id: Date.now(),
+      label: `${tab.label} ${n}`,
+      prixAchat: 0, prixLivraison: 0, prixLocation: 100, locationsMois: 4
+    });
+  }
+  renderUnits();
   renderSummary();
   renderSimulator();
   updateGrandTotal();
+  markResumeDirty();
+  scheduleAutoSave();
+}
+
+function removeCustomUnit(tabId, unitId) {
+  if (!state.customUnits[tabId]) return;
+  state.customUnits[tabId] = state.customUnits[tabId].filter(u => String(u.id) !== String(unitId));
+  renderUnits();
+  renderSummary();
+  renderSimulator();
+  updateGrandTotal();
+  markResumeDirty();
+  scheduleAutoSave();
+}
+
+/** Supprime une unité château */
+function removeChateauUnit(id) {
+  state.chateauUnits = state.chateauUnits.filter(u => String(u.id) !== String(id));
+  renderUnits();
+  renderSummary();
+  renderSimulator();
+  updateGrandTotal();
+  markResumeDirty();
   scheduleAutoSave();
 }
 
@@ -825,34 +1273,47 @@ function photoboothCoutParLoc() {
   }, 0);
 }
 
-/** Rendu complet de toutes les cartes château */
-function renderChateauUnits() {
-  const container = document.getElementById('chateau-units-container');
-  const coutLoc   = chateauCoutParLoc();
-
-  const badge = document.getElementById('chateau-cost-badge');
-  if (badge) badge.innerHTML = `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>`;
-
-  container.innerHTML = state.chateauUnits.map(unit =>
-    buildUnitCardHTML(unit, calcUnitStats(unit, coutLoc))
-  ).join('');
-
-  attachUnitListeners(container, state.chateauUnits, removeChateauUnit, coutLoc, true);
+function customCoutParLoc(tabId) {
+  const ds = DATA[tabId + '_service'];
+  if (!ds) return 0;
+  return ds.rows.reduce((s,r) => s + (r.prixHT||0)*(parseFloat(r.usure)||0), 0);
 }
 
-/** Construit le HTML du détail des équipements (dépliable) */
-function buildUnitDetailHTML() {
-  const rows  = DATA.chateauGonflable.rows;
-  const total = rows.reduce((s, r) => s + (r.prixHT || 0), 0);
+
+/**
+ * Détail des équipements (dépliable) — générique pour château et onglets custom.
+ * dsKey : clé DATA de l'invest dataset (ex: 'chateauGonflable', 'custom_xxx_invest')
+ * Les colonnes de nom supportées : produit (château) ou intitule (custom).
+ */
+function buildUnitDetailHTML(dsKey = 'chateauGonflable', unitIndex = 0) {
+  const ds = DATA[dsKey];
+  if (!ds || ds.rows.length === 0) return '<div class="unit-detail-list"><p style="color:var(--text-muted);padding:8px">Aucun équipement renseigné dans le tableau Détail.</p></div>';
+  const rows = ds.rows;
+
+  const coutPourCeUnit = r => {
+    const p = Math.max(1, parseInt(r.partage) || 1);
+    return unitIndex % p === 0 ? (r.prixHT || 0) : 0;
+  };
+  const total = rows.reduce((s, r) => s + coutPourCeUnit(r), 0);
+
   let html = '<div class="unit-detail-list">';
   rows.forEach(row => {
-    html += `<div class="detail-row">
-               <span class="detail-row-name">${escHtml(row.produit)}</span>
-               <span class="detail-row-price">${fmtPrice(row.prixHT || 0)}</span>
+    const partage = Math.max(1, parseInt(row.partage) || 1);
+    const isOwner = partage === 1 || unitIndex % partage === 0;
+    const cout    = isOwner ? (row.prixHT || 0) : 0;
+    const badge   = partage > 1
+      ? isOwner
+        ? `<span class="detail-row-badge">1/${partage}</span>`
+        : `<span class="detail-row-badge badge-shared">partagé</span>`
+      : '';
+    const name = row.produit || row.intitule || '';
+    html += `<div class="detail-row${isOwner ? '' : ' detail-row-shared'}">
+               <span class="detail-row-name">${escHtml(name)}${badge}</span>
+               <span class="detail-row-price">${isOwner ? fmtPrice(cout) : '<span class="empty-val">—</span>'}</span>
              </div>`;
   });
   html += `<div class="detail-row detail-row-total">
-             <span class="detail-row-name">Total équipements <small style="font-weight:400;color:var(--text-muted)">(HT)</small></span>
+             <span class="detail-row-name">Total achat <small style="font-weight:400;color:var(--text-muted)">(HT)</small></span>
              <span class="detail-row-price">${fmtPrice(total)}</span>
            </div>`;
   html += '</div>';
@@ -860,14 +1321,14 @@ function buildUnitDetailHTML() {
 }
 
 /** Construit le HTML d'une carte unité (château ou photobooth) */
-function buildUnitCardHTML(unit, s, cfg = {}) {
-  const { icon = '🏰', placeholder = 'Nom du château', showExpand = true } = cfg;
+function buildUnitCardHTML(unit, s, cfg = {}, unitIndex = 0) {
+  const { icon = '🏰', placeholder = 'Nom du château', showExpand = true, unitType = 'chateau', investDsKey = 'chateauGonflable' } = cfg;
   const expanded  = showExpand && state.expandedUnits.has(String(unit.id));
   const deleteBtn = unit.isMain ? ''
     : `<button class="btn-danger unit-delete" data-unit-id="${unit.id}">✕</button>`;
 
   return `
-    <div class="unit-card" data-unit-id="${unit.id}">
+    <div class="unit-card" data-unit-id="${unit.id}" data-unit-type="${unitType}">
       <div class="unit-header">
         <span class="unit-icon">${icon}</span>
         <input class="unit-input unit-name-input" type="text"
@@ -913,7 +1374,7 @@ function buildUnitCardHTML(unit, s, cfg = {}) {
           ${expanded ? '▲ Masquer les équipements' : '▼ Voir les équipements'}
         </button>
       </div>
-      ${expanded ? `<div class="unit-detail">${buildUnitDetailHTML()}</div>` : ''}` : ''}
+      ${expanded ? `<div class="unit-detail">${buildUnitDetailHTML(investDsKey, unitIndex)}</div>` : ''}` : ''}
     </div>`;
 }
 
@@ -949,31 +1410,83 @@ function refreshUnitStats(unit, coutParLoc) {
 /**
  * Attache tous les listeners d'une section d'unités (inputs, suppression, expand).
  * @param {Element}  container    — conteneur DOM
- * @param {Array}    units        — tableau d'unités de l'état
- * @param {Function} removeFn     — fonction de suppression (id) => void
- * @param {number}   coutParLoc   — coût HT par location pour le calcul de stats
- * @param {boolean}  hasExpand    — true si les cartes ont un bouton "voir équipements"
- */
-function attachUnitListeners(container, units, removeFn, coutParLoc, hasExpand) {
-  container.querySelectorAll('.unit-delete').forEach(btn => {
-    btn.addEventListener('click', () => removeFn(btn.dataset.unitId));
+/** Supprime une unité photobooth */
+function removePhotoboothUnit(id) {
+  state.photoboothUnits = state.photoboothUnits.filter(u => String(u.id) !== String(id));
+  renderUnits();
+  renderSummary();
+  renderSimulator();
+  updateGrandTotal();
+  markResumeDirty();
+  scheduleAutoSave();
+}
+
+/** Rendu unifié — châteaux + photobooths + unités custom */
+function renderUnits() {
+  const container = document.getElementById('units-container');
+  if (!container) return;
+  const coutLocC = chateauCoutParLoc();
+  const coutLocP = photoboothCoutParLoc();
+
+  const parts = [
+    ...state.chateauUnits.map((unit, idx) =>
+      buildUnitCardHTML(unit, calcUnitStats(unit, coutLocC),
+        { icon: '🏰', placeholder: 'Nom du château', showExpand: true, unitType: 'chateau', investDsKey: 'chateauGonflable' }, idx)),
+    ...state.photoboothUnits.map(unit =>
+      buildUnitCardHTML(unit, calcUnitStats(unit, coutLocP),
+        { icon: '📷', placeholder: 'Nom du photobooth', showExpand: false, unitType: 'photobooth' }))
+  ];
+
+  // Unités custom (onglets de type item)
+  state.customTabs.filter(t => t.type === 'item').forEach(tab => {
+    const units   = state.customUnits[tab.id] || [];
+    const coutLoc = customCoutParLoc(tab.id);
+    const investDsKey = tab.id + '_invest';
+    units.forEach((unit, idx) => {
+      parts.push(buildUnitCardHTML(unit, calcUnitStats(unit, coutLoc),
+        { icon: '📦', placeholder: tab.label, showExpand: true, unitType: tab.id, investDsKey }, idx));
+    });
   });
 
-  if (hasExpand) {
-    container.querySelectorAll('.unit-expand-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.unitId;
-        state.expandedUnits.has(id) ? state.expandedUnits.delete(id) : state.expandedUnits.add(id);
-        renderChateauUnits();
-      });
+  container.innerHTML = parts.join('');
+  attachUnitsListeners(container);
+}
+
+/** Listeners unifiés — détecte le type depuis data-unit-type */
+function attachUnitsListeners(container) {
+  const coutLocC = chateauCoutParLoc();
+  const coutLocP = photoboothCoutParLoc();
+
+  // Expand
+  container.querySelectorAll('.unit-expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.unitId;
+      state.expandedUnits.has(id) ? state.expandedUnits.delete(id) : state.expandedUnits.add(id);
+      renderUnits();
     });
-  }
+  });
+
+  // Suppression
+  container.querySelectorAll('.unit-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.closest('.unit-card')?.dataset.unitType;
+      if (type === 'chateau')    removeChateauUnit(btn.dataset.unitId);
+      else if (type === 'photobooth') removePhotoboothUnit(btn.dataset.unitId);
+      else                       removeCustomUnit(type, btn.dataset.unitId);
+    });
+  });
 
   const htFields  = new Set(['prixAchat', 'prixLivraison']);
   const numFields = new Set(['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois']);
 
   container.querySelectorAll('.unit-input').forEach(input => {
     input.addEventListener('input', () => {
+      const card  = input.closest('.unit-card');
+      const type  = card?.dataset.unitType;
+      let units, coutLoc;
+      if (type === 'chateau')         { units = state.chateauUnits;    coutLoc = coutLocC; }
+      else if (type === 'photobooth') { units = state.photoboothUnits; coutLoc = coutLocP; }
+      else                            { units = state.customUnits[type] || []; coutLoc = customCoutParLoc(type); }
       const unit = units.find(u => String(u.id) === String(input.dataset.unitId));
       if (!unit) return;
       const field = input.dataset.field;
@@ -983,112 +1496,104 @@ function attachUnitListeners(container, units, removeFn, coutParLoc, hasExpand) 
       } else {
         unit[field] = input.value;
       }
-      refreshUnitStats(unit, coutParLoc);
+      refreshUnitStats(unit, coutLoc);
       renderSummary();
       renderSimulator();
       updateGrandTotal();
+      markResumeDirty();
       scheduleAutoSave();
     });
   });
-}
-
-/* ════════════════════════════════════════════════════════════
-   SECTION "MES PHOTOBOOTHS" — unités configurables
-════════════════════════════════════════════════════════════ */
-
-function initPhotoboothUnits() {
-  document.getElementById('add-photobooth-btn').addEventListener('click', () => {
-    state.photoboothUnits.push({
-      id: Date.now(),
-      label: `Photobooth ${state.photoboothUnits.length + 1}`,
-      prixAchat: 0, prixLivraison: 0, prixLocation: 100, locationsMois: 4
-    });
-    renderPhotoboothUnits();
-    renderSummary();
-    renderSimulator();
-    updateGrandTotal();
-    scheduleAutoSave();
-  });
-}
-
-function removePhotoboothUnit(id) {
-  state.photoboothUnits = state.photoboothUnits.filter(u => String(u.id) !== String(id));
-  renderPhotoboothUnits();
-  renderSummary();
-  renderSimulator();
-  updateGrandTotal();
-  scheduleAutoSave();
-}
-
-function renderPhotoboothUnits() {
-  const container = document.getElementById('photobooth-units-container');
-  const hint      = document.getElementById('photobooth-hint');
-  const coutLoc   = photoboothCoutParLoc();
-
-  const badge = document.getElementById('photobooth-cost-badge');
-  if (badge) badge.innerHTML = coutLoc > 0
-    ? `${fmtPrice(coutLoc)}<span class="unit-cost-label"> frais de service</span>` : '';
-
-  hint.style.display = state.photoboothUnits.length === 0 ? '' : 'none';
-
-  container.innerHTML = state.photoboothUnits.map(unit =>
-    buildUnitCardHTML(unit, calcUnitStats(unit, coutLoc), { icon: '📷', placeholder: 'Nom du photobooth', showExpand: false })
-  ).join('');
-
-  attachUnitListeners(container, state.photoboothUnits, removePhotoboothUnit, coutLoc, false);
 }
 
 
 /* ════════════════════════════════════════════════════════════
    SIMULATEUR DE RENTABILITÉ — agrégé sur tous les châteaux
 ════════════════════════════════════════════════════════════ */
-function renderSimulator() {
+
+const _charts = {};
+
+function destroyChart(id) {
+  if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+}
+
+function computeSimKPIs() {
   const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
   const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
 
-  // Agrégation par unité
-  let totalInvestEquip = 0;
-  let totalCA          = 0;
-  let totalChargesVar  = 0;
-
+  let totalInvestEquip = 0, totalCA = 0, totalChargesVar = 0;
   const coutLocChateau    = chateauCoutParLoc();
   const coutLocPhotobooth = photoboothCoutParLoc();
 
   state.chateauUnits.forEach(unit => {
     const s = calcUnitStats(unit, coutLocChateau);
-    totalInvestEquip += s.invest;
-    totalCA          += s.caAnnuel;
-    totalChargesVar  += s.chargesVar;
+    totalInvestEquip += s.invest; totalCA += s.caAnnuel; totalChargesVar += s.chargesVar;
   });
-
   state.photoboothUnits.forEach(unit => {
     const s = calcUnitStats(unit, coutLocPhotobooth);
-    totalInvestEquip += s.invest;
-    totalCA          += s.caAnnuel;
-    totalChargesVar  += s.chargesVar;
+    totalInvestEquip += s.invest; totalCA += s.caAnnuel; totalChargesVar += s.chargesVar;
+  });
+  state.customTabs.filter(t => t.type === 'item').forEach(tab => {
+    const coutLoc = customCoutParLoc(tab.id);
+    (state.customUnits[tab.id] || []).forEach(unit => {
+      const s = calcUnitStats(unit, coutLoc);
+      totalInvestEquip += s.invest; totalCA += s.caAnnuel; totalChargesVar += s.chargesVar;
+    });
   });
 
   const chargesFixesAnnuelles = getTotalChargesFixesAnnuelles();
-  const totalInvest   = totalInvestEquip + fraisInitTTC + customTotal;
-  const totalCharges  = totalChargesVar + chargesFixesAnnuelles;
-  const benefAnnuel   = totalCA - totalCharges;
-  const benefMensuel  = benefAnnuel / 12;
-  const moisSeuil     = benefMensuel > 0 ? Math.ceil(totalInvest / benefMensuel) : Infinity;
+  const totalInvest  = totalInvestEquip + fraisInitTTC + customTotal;
+  const totalCharges = totalChargesVar + chargesFixesAnnuelles;
+  const benefAnnuel  = totalCA - totalCharges;
+  const benefMensuel = benefAnnuel / 12;
+  const roi          = totalInvest > 0 ? ((benefAnnuel / totalInvest) * 100).toFixed(1) : 0;
+  const moisSeuil    = benefMensuel > 0 ? Math.ceil(totalInvest / benefMensuel) : Infinity;
+
+  const grandTotal = totalInvest + chargesFixesAnnuelles;
+  return { totalInvest, totalCA, totalCharges, totalChargesVar, chargesFixesAnnuelles, benefAnnuel, benefMensuel, roi, moisSeuil, grandTotal };
+}
+
+function renderSimulator() {
+  const { totalInvest, totalCA, totalCharges, totalChargesVar, chargesFixesAnnuelles,
+          benefAnnuel, benefMensuel, roi, moisSeuil } = computeSimKPIs();
+
+  const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
+  const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
+
+  const salaireMensuel = 0;
 
   const fmtM = n => isFinite(n) ? `${n} mois` : '∞';
   const cls  = (n, good, warn) => n <= good ? 'good' : n <= warn ? '' : 'warn';
 
-  const nbChateaux    = state.chateauUnits.length;
-  const nbPhotobooths = state.photoboothUnits.length;
-  const equipStr = [
-    nbChateaux    ? `${nbChateaux} château${nbChateaux > 1 ? 'x' : ''}`           : '',
-    nbPhotobooths ? `${nbPhotobooths} photobooth${nbPhotobooths > 1 ? 's' : ''}` : ''
-  ].filter(Boolean).join(', ') || '—';
+  // ── KPIs principaux ────────────────────────────────────────
+  document.getElementById('sim-kpi-row').innerHTML = `
+    <div class="sim-kpi">
+      <div class="sim-kpi-icon">💰</div>
+      <div class="sim-kpi-label">CA annuel</div>
+      <div class="sim-kpi-value">${fmtPrice(totalCA)}</div>
+    </div>
+    <div class="sim-kpi ${benefAnnuel >= 0 ? 'kpi-good' : 'kpi-warn'}">
+      <div class="sim-kpi-icon">📈</div>
+      <div class="sim-kpi-label">Bénéfice / an</div>
+      <div class="sim-kpi-value">${fmtPrice(benefAnnuel)}</div>
+    </div>
+    <div class="sim-kpi ${cls(moisSeuil, 18, 36)}">
+      <div class="sim-kpi-icon">🎯</div>
+      <div class="sim-kpi-label">Retour sur invest.</div>
+      <div class="sim-kpi-value">${fmtM(moisSeuil)}</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-icon">📊</div>
+      <div class="sim-kpi-label">ROI annuel</div>
+      <div class="sim-kpi-value">${roi} %</div>
+    </div>
+  `;
 
+  // ── Détails ────────────────────────────────────────────────
   document.getElementById('be-results').innerHTML = `
     <div class="be-item">
-      <div class="be-item-label">CA annuel total</div>
-      <div class="be-item-value">${fmtPrice(totalCA)}</div>
+      <div class="be-item-label">Invest. total</div>
+      <div class="be-item-value">${fmtPrice(totalInvest)}</div>
     </div>
     <div class="be-item">
       <div class="be-item-label">Charges variables / an</div>
@@ -1098,24 +1603,49 @@ function renderSimulator() {
       <div class="be-item-label">Charges fixes / an</div>
       <div class="be-item-value">${fmtPrice(chargesFixesAnnuelles)}</div>
     </div>
-    <div class="be-item ${benefAnnuel >= 0 ? 'good' : 'warn'}">
-      <div class="be-item-label">Bénéfice annuel</div>
-      <div class="be-item-value">${fmtPrice(benefAnnuel)}</div>
-    </div>
-    <div class="be-item ${cls(moisSeuil, 18, 36)}">
-      <div class="be-item-label">Retour sur invest.</div>
-      <div class="be-item-value">${fmtM(moisSeuil)}</div>
-    </div>
     <div class="be-item">
-      <div class="be-item-label">Invest. total</div>
-      <div class="be-item-value">${fmtPrice(totalInvest)}</div>
-    </div>
-    <div class="be-item">
-      <div class="be-item-label">Équipements actifs</div>
-      <div class="be-item-value">${equipStr}</div>
+      <div class="be-item-label">Bénéfice mensuel</div>
+      <div class="be-item-value">${fmtPrice(benefMensuel)}</div>
     </div>
   `;
+
+  // ── Graphiques ─────────────────────────────────────────────
+  if (typeof Chart === 'undefined') return;
+  renderChartBreakeven(totalInvest, benefMensuel);
 }
+
+/* ── Graphique 1 : Amortissement ────────────────────────────── */
+function renderChartBreakeven(totalInvest, benefMensuel) {
+  destroyChart('breakeven');
+  const canvas = document.getElementById('chart-breakeven');
+  if (!canvas) return;
+
+  const maxMois = Math.min(Math.max(
+    benefMensuel > 0 ? Math.ceil(totalInvest / benefMensuel) + 6 : 60,
+    24
+  ), 84);
+
+  const labels     = Array.from({ length: maxMois + 1 }, (_, i) => `M${i}`);
+  const cumulProfit = labels.map((_, i) => Math.max(0, i * benefMensuel));
+  const investLine  = labels.map(() => totalInvest);
+
+  const datasets = [
+    { label: 'Investissement (jour 0)', data: investLine, borderColor: '#ef4444', borderDash: [6, 3], borderWidth: 2, pointRadius: 0, fill: false },
+    { label: 'Profit cumulé', data: cumulProfit, borderColor: '#10b981', borderWidth: 2, pointRadius: 0, fill: { target: '-1', above: 'rgba(16,185,129,.08)', below: 'rgba(239,68,68,.06)' } },
+  ];
+
+  _charts.breakeven = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtPrice(ctx.parsed.y)}` } } },
+      scales: { y: { ticks: { callback: v => fmtPrice(v) } } }
+    }
+  });
+}
+
 
 
 /* ════════════════════════════════════════════════════════════
@@ -1170,119 +1700,167 @@ function renderCustomBlocks() {
 
 
 /* ════════════════════════════════════════════════════════════
-   EXPORT CSV
+   IMPRESSION
 ════════════════════════════════════════════════════════════ */
 function initExport() {
-  document.getElementById('export-csv-btn').addEventListener('click', exportCurrentTableCSV);
-  document.getElementById('export-summary-csv-btn').addEventListener('click', exportSummaryCSV);
   document.getElementById('print-btn').addEventListener('click', () => window.print());
-}
-
-function exportCurrentTableCSV() {
-  if (state.tab === 'chateau' || state.tab === 'photobooth') {
-    const sections = state.tab === 'chateau'
-      ? [
-          { ds: DATA.chateauGonflable, label: 'Investissement — Initial — Matériel' },
-          { ds: DATA.fraisRecurrent,   label: 'Frais de service — Par journée de location' },
-          { ds: DATA.fraisMaintenance, label: 'Frais de maintenance — Par an' }
-        ]
-      : [
-          { ds: DATA.photobooth,                 label: 'Investissement — Initial — Matériel' },
-          { ds: DATA.fraisServicePhotobooth,     label: 'Frais de service — Par journée de location' },
-          { ds: DATA.fraisMaintenancePhotobooth, label: 'Frais de maintenance — Par an' }
-        ];
-    const search = getSearchTerm();
-    const filter = rows => search
-      ? rows.filter(row => Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(search)))
-      : rows;
-
-    const csvRows = sections.flatMap(({ ds, label }) => {
-      const rows = filter(resolveComputedRows([...ds.rows]));
-      return [
-        [`— ${label} —`],
-        ds.columns.map(c => c.label),
-        ...rows.map(row => ds.columns.map(col => row[col.key] ?? '')),
-        []
-      ];
-    });
-    downloadCSV(csvRows, `${state.tab === 'chateau' ? 'Chateau_Gonflable' : 'Photobooth'}.csv`);
-    return;
-  }
-
-  const dataset  = DATA[TAB_MAP[state.tab]];
-  const search   = getSearchTerm();
-  let   rows     = [...dataset.rows];
-
-  if (search) {
-    rows = rows.filter(row =>
-      Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(search))
-    );
-  }
-
-  const headers = dataset.columns.map(c => c.label);
-  const body    = rows.map(row => dataset.columns.map(col => row[col.key] ?? ''));
-  downloadCSV([headers, ...body], `${dataset.title}.csv`);
-}
-
-function exportSummaryCSV() {
-  const fraisInitTTC = DATA.fraisInitiaux.totalPrixTTC;
-  const coutParLoc   = chateauCoutParLoc();
-  const customTotal  = state.customBlocks.reduce((s, b) => s + (parseFloat(b.montant) || 0), 0);
-  const investTotal  = [...state.chateauUnits, ...state.photoboothUnits].reduce(
-    (s, u) => s + (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0), 0);
-  const grand = investTotal + fraisInitTTC + customTotal;
-
-  const rows = [
-    ['Catégorie', 'Montant TTC (€)', 'Remarque'],
-    ...state.chateauUnits.map(u => [
-      `🏰 ${u.label}`,
-      (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0),
-      `Location ${fmtRaw(u.prixLocation)} € × ${u.locationsMois}/mois`
-    ]),
-    ...state.photoboothUnits.map(u => [
-      `📷 ${u.label}`,
-      (parseFloat(u.prixAchat) || 0) + (parseFloat(u.prixLivraison) || 0),
-      `Location ${fmtRaw(u.prixLocation)} € × ${u.locationsMois}/mois`
-    ]),
-    ['Frais initiaux (SARL)', fraisInitTTC, 'Annonce légale + Greffe'],
-    ['Coût / location château', coutParLoc, 'Essence + consommables'],
-    ...state.customBlocks.map(b => [b.intitule || 'Bloc perso', parseFloat(b.montant) || 0, b.note || '']),
-    [],
-    ['TOTAL GLOBAL', grand, ''],
-  ];
-  downloadCSV(rows, 'Business_Plan.csv');
-}
-
-function downloadCSV(rows, filename) {
-  const esc  = v => { const s = String(v ?? '').replace(/"/g, '""'); return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s}"` : s; };
-  // BOM UTF-8 pour compatibilité Excel
-  const body = '\uFEFF' + rows.map(r => (Array.isArray(r) ? r : []).map(esc).join(';')).join('\r\n');
-  const blob = new Blob([body], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 
 /* ════════════════════════════════════════════════════════════
    SAUVEGARDE / CHARGEMENT (localStorage)
 ════════════════════════════════════════════════════════════ */
-const SAVE_KEY = 'bp_chateau_v1';
+const SAVE_KEY    = 'bp_chateau_v1';
+const HISTORY_KEY = 'bp_history_v1';
+const HISTORY_MAX = 40;
 let _autoSaveTimer = null;
 
+/* ── jsonbin.io ─────────────────────────────────────────────── */
+const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/69e12a91856a6821893ff825';
+const JSONBIN_KEY = '$2a$10$xPhBGIhnaRlxEbEFXCcFVekKcL2CRMXytb1rwlZayg4pFnBPtoonK';
+let _nptData = { current: null, history: [] };
+
 function initSave() {
-  document.getElementById('save-btn').addEventListener('click', () => saveData(true));
-  document.getElementById('export-file-btn').addEventListener('click', exportToFile);
-  document.getElementById('import-file-input').addEventListener('change', importFromFile);
+  document.getElementById('save-btn')?.addEventListener('click', saveCurrentSilent);
+  document.getElementById('detail-save-btn')?.addEventListener('click', saveDetail);
+  document.getElementById('resume-save-btn')?.addEventListener('click', () => {
+    promptSaveName(name => saveDataWithName(name));
+  });
+}
+
+/** Sauvegarde uniquement les tableaux (page Détail) */
+function saveDetail() {
+  try {
+    const base  = _nptData.current ? { ..._nptData.current } : buildSnapshot();
+    const snap  = {
+      ...base,
+      savedAt:    new Date().toISOString(),
+      customTabs: state.customTabs,
+      data:       Object.fromEntries(STATIC_KEYS.map(k => [k, { rows: DATA[k]?.rows ?? [] }])),
+      customData: buildCustomData()
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    _nptData.current = snap;
+    flushToAPI();
+    showToast('✓ Tableaux sauvegardés');
+    document.getElementById('detail-save-btn')?.classList.remove('unsaved');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠ Erreur — sauvegarde détail');
+  }
+}
+
+/** Sauvegarde uniquement la configuration (page Résumé) */
+function saveResume() {
+  try {
+    const base = _nptData.current ? { ..._nptData.current } : buildSnapshot();
+    const snap = {
+      ...base,
+      savedAt:         new Date().toISOString(),
+      chateauUnits:    state.chateauUnits,
+      photoboothUnits: state.photoboothUnits,
+      customUnits:     state.customUnits,
+      customBlocks:    state.customBlocks
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    _nptData.current = snap;
+    flushToAPI();
+    showToast('✓ Configuration sauvegardée');
+    document.getElementById('resume-save-btn')?.classList.remove('unsaved');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠ Erreur — sauvegarde résumé');
+  }
+}
+
+/** Sauvegarde silencieuse — état complet, sans créer de version dans l'historique */
+function saveCurrentSilent() {
+  try {
+    const snap = buildSnapshot();
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    _nptData.current = snap;
+    flushToAPI();
+    showToast('✓ Sauvegardé');
+    document.getElementById('save-btn')?.classList.remove('unsaved');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠ Erreur — sauvegarde');
+  }
+}
+
+/**
+ * Ouvre la modale de saisie du nom de sauvegarde.
+ * @param {function(string)} callback — appelé avec le nom saisi si confirmé
+ */
+function promptSaveName(callback) {
+  const overlay  = document.getElementById('savename-overlay');
+  const input    = document.getElementById('savename-input');
+  const btnOk    = document.getElementById('savename-confirm');
+  const btnCancel = document.getElementById('savename-cancel');
+
+  input.value = '';
+  input.placeholder = fmtHistoryDate(new Date().toISOString());
+  overlay.classList.remove('hidden');
+  input.focus();
+
+  function doConfirm() {
+    const name = input.value.trim() || fmtHistoryDate(new Date().toISOString());
+    overlay.classList.add('hidden');
+    cleanup();
+    callback(name);
+  }
+
+  function doCancel() {
+    overlay.classList.add('hidden');
+    cleanup();
+  }
+
+  function onKey(e) {
+    if (e.key === 'Enter')  doConfirm();
+    if (e.key === 'Escape') doCancel();
+  }
+
+  function cleanup() {
+    btnOk.removeEventListener('click', doConfirm);
+    btnCancel.removeEventListener('click', doCancel);
+    document.removeEventListener('keydown', onKey);
+  }
+
+  btnOk.addEventListener('click', doConfirm);
+  btnCancel.addEventListener('click', doCancel);
+  document.addEventListener('keydown', onKey);
+}
+
+/**
+ * Sauvegarde l'état courant avec un nom donné :
+ *  - localStorage (état courant)
+ *  - historique
+ *  - téléchargement du fichier .bpsave
+ */
+function saveDataWithName(name) {
+  try {
+    const snap = buildSnapshot();
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    _nptData.current = snap;
+    addHistoryEntry(name, snap);  // → persistHistory → flushToAPI
+    showToast(`✓ Sauvegardé — « ${name} »`);
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.classList.remove('unsaved');
+  } catch(e) {
+    showToast('⚠ Erreur de sauvegarde');
+  }
 }
 
 function saveData(showNotif = false) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(buildSnapshot()));
-    if (showNotif) showToast('✓ Sauvegardé');
+    const snap = buildSnapshot();
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    _nptData.current = snap;
+    if (showNotif) {
+      addHistoryEntry(null, snap);   // null = nom auto (date/heure)
+    } else {
+      flushToAPI();
+    }
     const btn = document.getElementById('save-btn');
     if (btn) btn.classList.remove('unsaved');
   } catch(e) {
@@ -1300,16 +1878,34 @@ function loadData() {
   }
 }
 
+const STATIC_KEYS = ['chateauGonflable','photobooth','fraisInitiaux','fraisRecurrent',
+                     'fraisMaintenance','fraisRecurrentsAnnuels','fraisServicePhotobooth','fraisMaintenancePhotobooth'];
+
+function buildCustomData() {
+  const customData = {};
+  state.customTabs.forEach(tab => {
+    if (tab.type === 'item') {
+      tab.sections.forEach(s => {
+        if (DATA[s.dsKey]) customData[s.dsKey] = { rows: DATA[s.dsKey].rows };
+      });
+    } else {
+      if (DATA[tab.id]) customData[tab.id] = { rows: DATA[tab.id].rows };
+    }
+  });
+  return customData;
+}
+
 function buildSnapshot() {
   return {
-    version: 1,
-    savedAt: new Date().toISOString(),
+    version: 3,
+    savedAt:         new Date().toISOString(),
     chateauUnits:    state.chateauUnits,
     photoboothUnits: state.photoboothUnits,
+    customUnits:     state.customUnits,
     customBlocks:    state.customBlocks,
-    data: Object.fromEntries(
-      Object.keys(DATA).map(k => [k, { rows: DATA[k].rows }])
-    )
+    customTabs:      state.customTabs,
+    data:            Object.fromEntries(STATIC_KEYS.map(k => [k, { rows: DATA[k]?.rows ?? [] }])),
+    customData:      buildCustomData()
   };
 }
 
@@ -1318,20 +1914,39 @@ function applySnapshot(snap) {
     state.chateauUnits    = snap.chateauUnits;
   if (Array.isArray(snap.photoboothUnits))
     state.photoboothUnits = snap.photoboothUnits;
+  if (snap.customUnits && typeof snap.customUnits === 'object')
+    state.customUnits = snap.customUnits;
   if (Array.isArray(snap.customBlocks))
     state.customBlocks    = snap.customBlocks;
+
+  // Onglets personnalisés
+  if (Array.isArray(snap.customTabs) && snap.customTabs.length) {
+    state.customTabs = snap.customTabs;
+    state.customTabs.forEach(tab => {
+      TAB_MAP[tab.id] = tab.id;
+      if (tab.type === 'item' && Array.isArray(tab.sections)) {
+        tab.sections.forEach(s => {
+          const rows = snap.customData?.[s.dsKey]?.rows || [];
+          if (s.dsKey.endsWith('_invest'))      DATA[s.dsKey] = makeInvestDataset(tab.label, rows);
+          else if (s.dsKey.endsWith('_service')) DATA[s.dsKey] = makeServiceDataset(tab.label, rows);
+          else                                   DATA[s.dsKey] = makeMaintenanceDataset(tab.label, rows);
+        });
+      } else {
+        const rows = snap.customData?.[tab.id]?.rows || [];
+        DATA[tab.id] = makeFreisDataset(tab.label, rows);
+      }
+    });
+    renderCustomTabButtons();
+    updateUnitTypeSelect();
+  }
+
   if (snap.data) {
     Object.keys(snap.data).forEach(k => {
       if (DATA[k] && Array.isArray(snap.data[k]?.rows)) {
-        const orig = DATA[k].rows;
+        const origRows = DATA[k].rows;
         DATA[k].rows = snap.data[k].rows.map((savedRow, i) => {
-          const o = orig[i] || {};
-          return {
-            ...savedRow,
-            ...(o.image   ? { image:   o.image   } : {}),
-            ...(o.prixHT  != null ? { prixHT:  o.prixHT  } : {}),
-            ...(o.prixTTC != null ? { prixTTC: o.prixTTC } : {})
-          };
+          const image = (origRows[i] || {}).image;
+          return image ? { ...savedRow, image } : { ...savedRow };
         });
       }
     });
@@ -1339,43 +1954,8 @@ function applySnapshot(snap) {
   recomputeDataTotals();
 }
 
-function exportToFile() {
-  const snap = buildSnapshot();
-  const json = JSON.stringify(snap, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const date = new Date().toISOString().slice(0, 10);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `bp-chateau-${date}.bpsave`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('✓ Fichier exporté');
-}
-
-function importFromFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = evt => {
-    try {
-      const snap = JSON.parse(evt.target.result);
-      applySnapshot(snap);
-      saveData(false); // sync localStorage avec le fichier importé
-      renderAll();
-      showToast('✓ Configuration importée');
-    } catch {
-      showToast('⚠ Fichier invalide');
-    }
-    // Reset input pour permettre de réimporter le même fichier
-    e.target.value = '';
-  };
-  reader.readAsText(file);
-}
-
 function renderAll() {
-  renderChateauUnits();
-  renderPhotoboothUnits();
+  renderUnits();
   renderSummary();
   renderSimulator();
   updateGrandTotal();
@@ -1383,10 +1963,263 @@ function renderAll() {
 }
 
 function scheduleAutoSave() {
-  const btn = document.getElementById('save-btn');
-  if (btn) btn.classList.add('unsaved');
+  document.getElementById('detail-save-btn')?.classList.add('unsaved');
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(() => saveData(false), 1500);
+}
+
+function markResumeDirty() {
+  document.getElementById('resume-save-btn')?.classList.add('unsaved');
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   NPOINT.IO — Persistance cloud
+════════════════════════════════════════════════════════════ */
+
+/** Charge les données depuis jsonbin au démarrage */
+async function loadFromAPI() {
+  try {
+    const res = await fetch(JSONBIN_URL, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!res.ok) throw new Error('jsonbin unreachable');
+    const json = await res.json();
+    const parsed = json.record || json;
+    _nptData = {
+      current: parsed.current || null,
+      history: Array.isArray(parsed.history) ? parsed.history : []
+    };
+    if (_nptData.current) {
+      applySnapshot(_nptData.current);
+    } else {
+      loadData();   // fallback localStorage si pas encore de snapshot cloud
+    }
+  } catch {
+    loadData();   // fallback localStorage si jsonbin indisponible
+  }
+}
+
+/** Écrit _nptData vers jsonbin (fire-and-forget) */
+function flushToAPI() {
+  fetch(JSONBIN_URL, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_KEY
+    },
+    body: JSON.stringify(_nptData)
+  })
+  .then(res => {
+    if (!res.ok) showToast(`⚠ jsonbin erreur ${res.status}`);
+  })
+  .catch(e => {
+    console.error('Écriture jsonbin échouée', e);
+    showToast('⚠ Sauvegarde cloud échouée');
+  });
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   HISTORIQUE DES SAUVEGARDES
+════════════════════════════════════════════════════════════ */
+
+function fmtHistoryDate(isoStr) {
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+    + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+
+function getHistory() {
+  return _nptData.history || [];
+}
+
+function persistHistory(entries) {
+  _nptData.history = entries;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+  flushToAPI();
+}
+
+/**
+ * Ajoute un snapshot à l'historique.
+ * @param {string|null} name  — null = nom auto (date/heure)
+ * @param {Object}      snap  — snapshot (buildSnapshot())
+ */
+function addHistoryEntry(name, snap) {
+  const entries = getHistory();
+  const now     = new Date();
+  const kpis    = computeSimKPIs();
+  entries.unshift({
+    id:          now.getTime(),
+    name:        name || fmtHistoryDate(now.toISOString()),
+    savedAt:     now.toISOString(),
+    benefAnnuel: kpis.benefAnnuel,
+    roi:         kpis.roi,
+    grandTotal:  kpis.grandTotal,
+    snap
+  });
+  if (entries.length > HISTORY_MAX) entries.length = HISTORY_MAX;
+  persistHistory(entries);
+}
+
+function deleteHistoryEntry(id) {
+  persistHistory(getHistory().filter(e => String(e.id) !== String(id)));
+}
+
+function initHistoryPanel() {
+  const overlay = document.getElementById('history-overlay');
+  const drawer  = document.getElementById('history-drawer');
+
+  document.getElementById('history-btn').addEventListener('click', openHistoryPanel);
+  document.getElementById('resume-history-btn')?.addEventListener('click', openHistoryPanel);
+  document.getElementById('history-close').addEventListener('click', closeHistoryPanel);
+
+  // Fermer en cliquant hors du drawer
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeHistoryPanel(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeHistoryPanel();
+  });
+
+}
+
+function openHistoryPanel() {
+  renderHistoryList();
+  document.getElementById('history-overlay').classList.remove('hidden');
+  document.getElementById('history-close').focus();
+}
+
+function closeHistoryPanel() {
+  document.getElementById('history-overlay').classList.add('hidden');
+}
+
+function computeKPIsFromSnap(snap) {
+  if (!snap) return { benefAnnuel: null, roi: null };
+  const sd = snap.data || {};
+  const cd = snap.customData || {};
+  const customTabs = snap.customTabs || [];
+
+  const coutLoc = rows => (rows || []).reduce((s,r) => s + (parseFloat(r.prixHT)||0)*(parseFloat(r.usure)||0), 0);
+  const coutLocCH = coutLoc(sd.fraisRecurrent?.rows);
+  const coutLocPB = coutLoc(sd.fraisServicePhotobooth?.rows);
+
+  let totalInvestEquip = 0, totalCA = 0, totalChargesVar = 0;
+  const calcUnit = (unit, cl) => {
+    totalInvestEquip += (parseFloat(unit.prixAchat)||0) + (parseFloat(unit.prixLivraison)||0);
+    const locs = (parseFloat(unit.locationsMois)||0) * 12;
+    totalCA         += locs * (parseFloat(unit.prixLocation)||0);
+    totalChargesVar += locs * cl;
+  };
+  (snap.chateauUnits    || []).forEach(u => calcUnit(u, coutLocCH));
+  (snap.photoboothUnits || []).forEach(u => calcUnit(u, coutLocPB));
+  customTabs.filter(t => t.type === 'item').forEach(tab => {
+    const cl = coutLoc(cd[tab.id + '_service']?.rows);
+    ((snap.customUnits || {})[tab.id] || []).forEach(u => calcUnit(u, cl));
+  });
+
+  // Charges fixes
+  const sumRows = rows => (rows || []).reduce((s,r) => s + (parseFloat(r.prixTTC)||0), 0);
+  const mainCH  = sumRows(sd.fraisMaintenance?.rows);
+  const mainPB  = sumRows(sd.fraisMaintenancePhotobooth?.rows);
+  const mainCust = customTabs.filter(t => t.type === 'item')
+    .reduce((s,t) => s + sumRows(cd[t.id + '_maintenance']?.rows), 0);
+
+  // Assurance matériel (6% base matériel)
+  const electro = parseFloat((sd.chateauGonflable?.rows || []).find(r => r.produit?.includes('électrogène'))?.prixHT || 0);
+  const assurance = ((snap.chateauUnits||[]).reduce((s,u) => s+(parseFloat(u.prixAchat)||0)+electro, 0)
+    + (snap.photoboothUnits||[]).reduce((s,u) => s+(parseFloat(u.prixAchat)||0), 0)) * 0.06;
+
+  const recurrents = (sd.fraisRecurrentsAnnuels?.rows || []).reduce((s,r) => {
+    if (r.computed === 'assurance_materiel') return s + assurance;
+    return s + (parseFloat(r.prixTTC)||0);
+  }, 0);
+
+  const chargesFixesAnnuelles = mainCH + recurrents + mainPB + mainCust;
+  const fraisInitTTC = sumRows(sd.fraisInitiaux?.rows);
+  const customTotal  = (snap.customBlocks||[]).reduce((s,b) => s+(parseFloat(b.montant)||0), 0);
+  const totalInvest  = totalInvestEquip + fraisInitTTC + customTotal;
+  const totalCharges = totalChargesVar + chargesFixesAnnuelles;
+  const benefAnnuel  = totalCA - totalCharges;
+  const roi          = totalInvest > 0 ? ((benefAnnuel / totalInvest) * 100).toFixed(1) : 0;
+  const grandTotal   = totalInvestEquip + fraisInitTTC + chargesFixesAnnuelles + customTotal;
+  return { benefAnnuel, roi, grandTotal };
+}
+
+function renderHistoryList() {
+  const entries   = getHistory();
+  const container = document.getElementById('history-list');
+  const countEl   = document.getElementById('history-count');
+
+  if (countEl) countEl.textContent = entries.length
+    ? `${entries.length} sauvegarde${entries.length > 1 ? 's' : ''}`
+    : '';
+
+  if (!entries.length) {
+    container.innerHTML = `<div class="history-empty">
+      Aucune sauvegarde.<br>
+      <small>Cliquez sur « Sauvegarder maintenant » pour commencer.</small>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = entries.map((entry, i) => {
+    const kpis = (entry.benefAnnuel != null)
+      ? { benefAnnuel: entry.benefAnnuel, roi: entry.roi, grandTotal: entry.grandTotal }
+      : computeKPIsFromSnap(entry.snap);
+    return `
+    <div class="history-entry" data-id="${entry.id}" role="listitem">
+      <div class="history-entry-top">
+        <div class="history-entry-left">
+          <input class="history-entry-name" value="${escHtml(entry.name)}"
+                 data-id="${entry.id}" aria-label="Nom de la sauvegarde" />
+          <div class="history-entry-kpis">
+            ${kpis.grandTotal  != null ? `<span class="history-kpi">💰 ${fmtPrice(kpis.grandTotal)}</span>` : ''}
+            ${kpis.benefAnnuel != null ? `<span class="history-kpi ${kpis.benefAnnuel >= 0 ? 'kpi-pos' : 'kpi-neg'}">📈 ${fmtPrice(kpis.benefAnnuel)}/an</span>` : ''}
+            ${kpis.roi         != null ? `<span class="history-kpi">ROI ${kpis.roi} %</span>` : ''}
+          </div>
+        </div>
+        ${i === 0 ? '<span class="history-latest-badge">Dernière</span>' : ''}
+      </div>
+      <div class="history-entry-bottom">
+        <span class="history-entry-date">${fmtHistoryDate(entry.savedAt)}</span>
+        <div class="history-entry-actions">
+          <button class="btn-history-load"   data-id="${entry.id}" title="Charger">📥 Charger</button>
+          <button class="btn-history-delete" data-id="${entry.id}" title="Supprimer">🗑</button>
+        </div>
+      </div>
+    </div>
+  `;
+  }).join('');
+
+  // ── Renommer ──────────────────────────────────────────────
+  container.querySelectorAll('.history-entry-name').forEach(input => {
+    input.addEventListener('change', () => {
+      const entries = getHistory();
+      const entry   = entries.find(e => String(e.id) === String(input.dataset.id));
+      if (entry) { entry.name = input.value.trim() || entry.name; persistHistory(entries); }
+    });
+  });
+
+  // ── Charger ───────────────────────────────────────────────
+  container.querySelectorAll('.btn-history-load').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const entry = getHistory().find(e => String(e.id) === String(btn.dataset.id));
+      if (!entry) return;
+      if (!confirm(`Charger « ${entry.name} » ?\nL'état actuel non sauvegardé sera remplacé.`)) return;
+      applySnapshot(entry.snap);
+      saveData(false);
+      renderAll();
+      closeHistoryPanel();
+      showToast(`✓ « ${entry.name} » chargée`);
+    });
+  });
+
+  // ── Supprimer ─────────────────────────────────────────────
+  container.querySelectorAll('.btn-history-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      deleteHistoryEntry(btn.dataset.id);
+      renderHistoryList();
+    });
+  });
 }
 
 function showToast(msg) {

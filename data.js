@@ -16,21 +16,23 @@ const DATA = {
     subtitle: "Investissement initial — Matériel",
     accentClass: "accent-cyan",
     columns: [
-      { key: "produit",     label: "Produit",       type: "text"   },
+      { key: "produit",       label: "Produit",         type: "text"   },
       { key: "avertissement", label: "⚠️ Avertissement", type: "text"   },
-      { key: "qte",         label: "Qté",           type: "number" },
-      { key: "prixHT",      label: "Prix HT",       type: "price"  },
-      { key: "prixTTC",     label: "Prix TTC",      type: "price"  },
-      { key: "commentaire", label: "Commentaire",   type: "text"   },
-      { key: "lien",        label: "Lien",          type: "link"   }
+      { key: "qte",           label: "Qté",             type: "number" },
+      { key: "prixHT",        label: "Prix HT",         type: "price"  },
+      { key: "prixTTC",       label: "Prix TTC",        type: "price"  },
+      { key: "partage",       label: "1/n CH",           type: "number" },
+      { key: "commentaire",   label: "Commentaire",     type: "text"   },
+      { key: "lien",          label: "Lien",            type: "link"   },
+      { key: "coutParChateau", label: "/CH", type: "price",
+        compute: row => (row.prixHT || 0) / Math.max(1, parseInt(row.partage) || 1) }
     ],
     rows: [
       {
         produit: "Groupe électrogène",
         avertissement: "Techno inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
-        qte: 1,
-        prixHT: 559.20,
-        prixTTC: 699.00,
+        qte: 1, partage: 2,
+        prixHT: 559.20, prixTTC: 699.00,
         commentaire: "Prix affiché TTC sur le site\n6 à 8 heures d'autonomie",
         lien: "https://www.leroymerlin.fr/produits/groupe-electrogene-silencieux-2200w-inverter-moteur-4t-essence-79-cm3-champion-protection-avr-autonomie-10-heures-generateur-85118083.html",
         image: "image/groupe elec.png"
@@ -38,9 +40,8 @@ const DATA = {
       {
         produit: "Enrouleur (élec)",
         avertissement: "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
-        qte: 1,
-        prixHT: 55.12,
-        prixTTC: 66.14,
+        qte: 1, partage: 1,
+        prixHT: 55.12, prixTTC: 66.14,
         commentaire: "Existe moins cher (~30€) mais pas en simple câble et en 10m",
         lien: "https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/",
         image: "image/enrouleur chantier.png"
@@ -48,9 +49,8 @@ const DATA = {
       {
         produit: "Jerican",
         avertissement: "Consommation d'un château 10h → 9 à 12 L",
-        qte: 1,
-        prixHT: 11.12,
-        prixTTC: 13.34,
+        qte: 1, partage: 2,
+        prixHT: 11.12, prixTTC: 13.34,
         commentaire: "",
         lien: "https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063",
         image: "image/jerican.png"
@@ -58,9 +58,8 @@ const DATA = {
       {
         produit: "Plaque anti-vibration",
         avertissement: "",
-        qte: 1,
-        prixHT: 9.20,
-        prixTTC: 11.04,
+        qte: 1, partage: 2,
+        prixHT: 9.20, prixTTC: 11.04,
         commentaire: "Sous le groupe électrogène",
         lien: "https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd",
         image: "image/plaque vibration.png"
@@ -68,9 +67,8 @@ const DATA = {
       {
         produit: "Bâche protection",
         avertissement: "",
-        qte: 1,
-        prixHT: 8.80,
-        prixTTC: 10.56,
+        qte: 1, partage: 1,
+        prixHT: 8.80, prixTTC: 10.56,
         commentaire: "Humidité sol / saleté",
         lien: "https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction/dp/B0CHJW6T4Y",
         image: "image/bache.png"
@@ -78,9 +76,8 @@ const DATA = {
       {
         produit: "Diable rigide STANDERS",
         avertissement: "",
-        qte: 1,
-        prixHT: 43.12,
-        prixTTC: 51.74,
+        qte: 1, partage: 1,
+        prixHT: 43.12, prixTTC: 51.74,
         commentaire: "",
         lien: "https://www.leroymerlin.fr/produits/diable-rigide-standers-charge-garantie-200-kg-85106882.html",
         image: "image/diable.png"
@@ -101,7 +98,7 @@ const DATA = {
       { key: "usure",       label: "Usure / loc", type: "number" },
       { key: "prixHT",      label: "Prix HT",     type: "price"  },
       { key: "prixTTC",     label: "Prix TTC",    type: "price"  },
-      { key: "coutParLoc",  label: "Coût / loc",  type: "price", compute: row => (row.prixHT || 0) * (parseFloat(row.usure) || 0) }
+      { key: "coutParLoc",  label: "Coût / loc",  type: "price", compute: row => (row.prixHT || 0) * (parseFloat(row.usure) || 0), isTotal: true }
     ],
     rows: [
       {
@@ -148,9 +145,9 @@ const DATA = {
     subtitle: "Frais de création et de démarrage",
     accentClass: "accent-orange",
     columns: [
-      { key: "intitule",  label: "Intitulé",     type: "text"  },
-      { key: "prixTTC",   label: "Montant TTC",  type: "price" },
-      { key: "remarque",  label: "Remarque",     type: "text"  }
+      { key: "intitule",  label: "Intitulé",    type: "text"  },
+      { key: "remarque",  label: "Remarque",    type: "text"  },
+      { key: "prixTTC",   label: "HT/AN",  type: "price", isTotal: true }
     ],
     rows: [
       {
@@ -180,9 +177,9 @@ const DATA = {
     subtitle: "Coûts annuels de maintenance",
     accentClass: "accent-orange",
     columns: [
-      { key: "intitule", label: "Intitulé",           type: "text"  },
-      { key: "prixTTC",  label: "Montant TTC / an",   type: "price" },
-      { key: "remarque", label: "Remarque",            type: "text"  }
+      { key: "intitule", label: "Intitulé",        type: "text"  },
+      { key: "remarque", label: "Remarque",         type: "text"  },
+      { key: "prixTTC",  label: "HT/AN", type: "price", isTotal: true }
     ],
     rows: [
       { intitule: "Contrôle technique", prixTTC: 300.00, remarque: "" }
@@ -198,9 +195,9 @@ const DATA = {
     subtitle: "Charges fixes annuelles",
     accentClass: "accent-red",
     columns: [
-      { key: "intitule", label: "Intitulé",          type: "text"  },
-      { key: "prixTTC",  label: "Montant TTC / an",  type: "price" },
-      { key: "remarque", label: "Remarque",           type: "text"  }
+      { key: "intitule", label: "Intitulé",        type: "text"  },
+      { key: "remarque", label: "Remarque",         type: "text"  },
+      { key: "prixTTC",  label: "HT/AN", type: "price", isTotal: true }
     ],
     rows: [
       {
@@ -259,9 +256,13 @@ const DATA = {
     subtitle: "Coûts variables par journée de location",
     accentClass: "accent-purple",
     columns: [
-      { key: "intitule",   label: "Intitulé",    type: "text"  },
-      { key: "prixTTC",    label: "Prix TTC",    type: "price" },
-      { key: "coutParLoc", label: "Coût / loc",  type: "price" }
+      { key: "intitule",    label: "Intitulé",    type: "text"   },
+      { key: "commentaire", label: "Commentaire", type: "text"   },
+      { key: "usure",       label: "Usure / loc", type: "number" },
+      { key: "prixHT",      label: "Prix HT",     type: "price"  },
+      { key: "prixTTC",     label: "Prix TTC",    type: "price"  },
+      { key: "coutParLoc",  label: "Coût / loc",  type: "price",
+        compute: row => (row.prixHT || 0) * (parseFloat(row.usure) || 0), isTotal: true }
     ],
     rows: []
   },

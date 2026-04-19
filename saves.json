@@ -1,0 +1,807 @@
+{
+  "current": {
+    "version": 1,
+    "savedAt": "2026-04-16T17:59:23.832Z",
+    "chateauUnits": [
+      {
+        "id": "main",
+        "label": "Château principal",
+        "isMain": true,
+        "prixAchat": 2382,
+        "prixLivraison": 178.8,
+        "prixLocation": 300,
+        "locationsMois": 1
+      }
+    ],
+    "photoboothUnits": [],
+    "customBlocks": [],
+    "data": {
+      "chateauGonflable": {
+        "rows": [
+          {
+            "produit": "Groupe électrogène",
+            "avertissement": "Technos inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
+            "qte": 1,
+            "partage": 2,
+            "prixHT": 559.2,
+            "prixTTC": 699,
+            "commentaire": "Prix affiché TTC sur le site\n6 à 8 heures d'autonomie",
+            "lien": "https://www.leroymerlin.fr/produits/groupe-electrogene-silencieux-2200w-inverter-moteur-4t-essence-79-cm3-champion-protection-avr-autonomie-10-heures-generateur-85118083.html",
+            "image": "image/groupe elec.png"
+          },
+          {
+            "produit": "Enrouleur (élec)",
+            "avertissement": "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
+            "qte": 1,
+            "partage": 1,
+            "prixHT": 55.12,
+            "prixTTC": 66.14,
+            "commentaire": "Existe moins cher (~30€) mais pas en simple câble et en 10m",
+            "lien": "https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/",
+            "image": "image/enrouleur chantier.png"
+          },
+          {
+            "produit": "Jerican",
+            "avertissement": "Consommation d'un château 10h → 9 à 12 L",
+            "qte": 1,
+            "partage": 2,
+            "prixHT": 11.12,
+            "prixTTC": 13.34,
+            "commentaire": "",
+            "lien": "https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063",
+            "image": "image/jerican.png"
+          },
+          {
+            "produit": "Plaque anti-vibration",
+            "avertissement": "",
+            "qte": 1,
+            "partage": 2,
+            "prixHT": 9.2,
+            "prixTTC": 11.04,
+            "commentaire": "Sous le groupe électrogène",
+            "lien": "https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd",
+            "image": "image/plaque vibration.png"
+          },
+          {
+            "produit": "Bâche protection",
+            "avertissement": "",
+            "qte": 1,
+            "partage": 1,
+            "prixHT": 8.8,
+            "prixTTC": 10.56,
+            "commentaire": "Humidité sol / saleté",
+            "lien": "https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction/dp/B0CHJW6T4Y",
+            "image": "image/bache.png"
+          },
+          {
+            "produit": "Diable rigide STANDERS",
+            "avertissement": "",
+            "qte": 1,
+            "partage": 1,
+            "prixHT": 43.12,
+            "prixTTC": 51.74,
+            "commentaire": "",
+            "lien": "https://www.leroymerlin.fr/produits/diable-rigide-standers-charge-garantie-200-kg-85106882.html",
+            "image": "image/diable.png"
+          }
+        ]
+      },
+      "fraisRecurrent": {
+        "rows": [
+          {
+            "intitule": "Essence SP98",
+            "commentaire": "~12 L par jour de location",
+            "usure": 12,
+            "prixHT": 2,
+            "prixTTC": 2,
+            "coutParLoc": 24
+          },
+          {
+            "intitule": "Lingette micro fibre",
+            "commentaire": "Pack de 20 pour nettoyage",
+            "usure": 0.1,
+            "prixHT": 9.52,
+            "prixTTC": 11.42,
+            "coutParLoc": 1.14
+          },
+          {
+            "intitule": "Dégraissant produit",
+            "commentaire": "",
+            "usure": 0.1,
+            "prixHT": 41.52,
+            "prixTTC": 51.9,
+            "coutParLoc": 5.19
+          },
+          {
+            "intitule": "Huile 4T",
+            "commentaire": "",
+            "usure": 0.1,
+            "prixHT": 17.6,
+            "prixTTC": 21.12,
+            "coutParLoc": 2.11
+          }
+        ]
+      },
+      "fraisInitiaux": {
+        "rows": [
+          {
+            "intitule": "Création SARL — Annonce légale",
+            "prixTTC": 200,
+            "remarque": ""
+          },
+          {
+            "intitule": "Création SARL — Greffe / immatriculation",
+            "prixTTC": 270,
+            "remarque": ""
+          },
+          {
+            "intitule": "Expert comptable — Accompagnement création",
+            "prixTTC": 500,
+            "remarque": ""
+          }
+        ]
+      },
+      "fraisMaintenance": {
+        "rows": [
+          {
+            "intitule": "Contrôle technique",
+            "prixTTC": 300,
+            "remarque": ""
+          }
+        ]
+      },
+      "fraisRecurrentsAnnuels": {
+        "rows": [
+          {
+            "intitule": "RC Pro",
+            "prixTTC": 900,
+            "remarque": "Responsabilité Civile Professionnelle"
+          },
+          {
+            "intitule": "Assurance multirisque matériel professionnel",
+            "prixTTC": null,
+            "computed": "assurance_materiel",
+            "remarque": "6 % du coût du matériel (photobooths + châteaux achat + électrogène)"
+          },
+          {
+            "intitule": "Comptable",
+            "prixTTC": 1200,
+            "remarque": ""
+          },
+          {
+            "intitule": "Compte bancaire pro",
+            "prixTTC": 120,
+            "remarque": "10 € / mois"
+          },
+          {
+            "intitule": "Hébergement",
+            "prixTTC": 70,
+            "remarque": ""
+          },
+          {
+            "intitule": "Nom de domaine + mail",
+            "prixTTC": 17,
+            "remarque": ""
+          }
+        ]
+      },
+      "photobooth": {
+        "rows": []
+      },
+      "fraisServicePhotobooth": {
+        "rows": []
+      },
+      "fraisMaintenancePhotobooth": {
+        "rows": []
+      }
+    }
+  },
+  "history": [
+    {
+      "id": 1776362363832,
+      "name": "16/04/2026 à 19:59",
+      "savedAt": "2026-04-16T17:59:23.832Z",
+      "snap": {
+        "version": 1,
+        "savedAt": "2026-04-16T17:59:23.832Z",
+        "chateauUnits": [
+          {
+            "id": "main",
+            "label": "Château principal",
+            "isMain": true,
+            "prixAchat": 2382,
+            "prixLivraison": 178.8,
+            "prixLocation": 300,
+            "locationsMois": 1
+          }
+        ],
+        "photoboothUnits": [],
+        "customBlocks": [],
+        "data": {
+          "chateauGonflable": {
+            "rows": [
+              {
+                "produit": "Groupe électrogène",
+                "avertissement": "Technos inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 559.2,
+                "prixTTC": 699,
+                "commentaire": "Prix affiché TTC sur le site\n6 à 8 heures d'autonomie",
+                "lien": "https://www.leroymerlin.fr/produits/groupe-electrogene-silencieux-2200w-inverter-moteur-4t-essence-79-cm3-champion-protection-avr-autonomie-10-heures-generateur-85118083.html",
+                "image": "image/groupe elec.png"
+              },
+              {
+                "produit": "Enrouleur (élec)",
+                "avertissement": "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 55.12,
+                "prixTTC": 66.14,
+                "commentaire": "Existe moins cher (~30€) mais pas en simple câble et en 10m",
+                "lien": "https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/",
+                "image": "image/enrouleur chantier.png"
+              },
+              {
+                "produit": "Jerican",
+                "avertissement": "Consommation d'un château 10h → 9 à 12 L",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 11.12,
+                "prixTTC": 13.34,
+                "commentaire": "",
+                "lien": "https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063",
+                "image": "image/jerican.png"
+              },
+              {
+                "produit": "Plaque anti-vibration",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 9.2,
+                "prixTTC": 11.04,
+                "commentaire": "Sous le groupe électrogène",
+                "lien": "https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd",
+                "image": "image/plaque vibration.png"
+              },
+              {
+                "produit": "Bâche protection",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 8.8,
+                "prixTTC": 10.56,
+                "commentaire": "Humidité sol / saleté",
+                "lien": "https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction/dp/B0CHJW6T4Y",
+                "image": "image/bache.png"
+              },
+              {
+                "produit": "Diable rigide STANDERS",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 43.12,
+                "prixTTC": 51.74,
+                "commentaire": "",
+                "lien": "https://www.leroymerlin.fr/produits/diable-rigide-standers-charge-garantie-200-kg-85106882.html",
+                "image": "image/diable.png"
+              }
+            ]
+          },
+          "fraisRecurrent": {
+            "rows": [
+              {
+                "intitule": "Essence SP98",
+                "commentaire": "~12 L par jour de location",
+                "usure": 12,
+                "prixHT": 2,
+                "prixTTC": 2,
+                "coutParLoc": 24
+              },
+              {
+                "intitule": "Lingette micro fibre",
+                "commentaire": "Pack de 20 pour nettoyage",
+                "usure": 0.1,
+                "prixHT": 9.52,
+                "prixTTC": 11.42,
+                "coutParLoc": 1.14
+              },
+              {
+                "intitule": "Dégraissant produit",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 41.52,
+                "prixTTC": 51.9,
+                "coutParLoc": 5.19
+              },
+              {
+                "intitule": "Huile 4T",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 17.6,
+                "prixTTC": 21.12,
+                "coutParLoc": 2.11
+              }
+            ]
+          },
+          "fraisInitiaux": {
+            "rows": [
+              {
+                "intitule": "Création SARL — Annonce légale",
+                "prixTTC": 200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Création SARL — Greffe / immatriculation",
+                "prixTTC": 270,
+                "remarque": ""
+              },
+              {
+                "intitule": "Expert comptable — Accompagnement création",
+                "prixTTC": 500,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisMaintenance": {
+            "rows": [
+              {
+                "intitule": "Contrôle technique",
+                "prixTTC": 300,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisRecurrentsAnnuels": {
+            "rows": [
+              {
+                "intitule": "RC Pro",
+                "prixTTC": 900,
+                "remarque": "Responsabilité Civile Professionnelle"
+              },
+              {
+                "intitule": "Assurance multirisque matériel professionnel",
+                "prixTTC": null,
+                "computed": "assurance_materiel",
+                "remarque": "6 % du coût du matériel (photobooths + châteaux achat + électrogène)"
+              },
+              {
+                "intitule": "Comptable",
+                "prixTTC": 1200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Compte bancaire pro",
+                "prixTTC": 120,
+                "remarque": "10 € / mois"
+              },
+              {
+                "intitule": "Hébergement",
+                "prixTTC": 70,
+                "remarque": ""
+              },
+              {
+                "intitule": "Nom de domaine + mail",
+                "prixTTC": 17,
+                "remarque": ""
+              }
+            ]
+          },
+          "photobooth": {
+            "rows": []
+          },
+          "fraisServicePhotobooth": {
+            "rows": []
+          },
+          "fraisMaintenancePhotobooth": {
+            "rows": []
+          }
+        }
+      }
+    },
+    {
+      "id": 1776362352423,
+      "name": "16/04/2026 à 19:59",
+      "savedAt": "2026-04-16T17:59:12.423Z",
+      "snap": {
+        "version": 1,
+        "savedAt": "2026-04-16T17:59:12.423Z",
+        "chateauUnits": [
+          {
+            "id": "main",
+            "label": "Château principal",
+            "isMain": true,
+            "prixAchat": 2382,
+            "prixLivraison": 178.8,
+            "prixLocation": 300,
+            "locationsMois": 1
+          }
+        ],
+        "photoboothUnits": [],
+        "customBlocks": [],
+        "data": {
+          "chateauGonflable": {
+            "rows": [
+              {
+                "produit": "Groupe électrogène",
+                "avertissement": "Technos inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 559.2,
+                "prixTTC": 699,
+                "commentaire": "Prix affiché TTC sur le site\n6 à 8 heures d'autonomie",
+                "lien": "https://www.leroymerlin.fr/produits/groupe-electrogene-silencieux-2200w-inverter-moteur-4t-essence-79-cm3-champion-protection-avr-autonomie-10-heures-generateur-85118083.html",
+                "image": "image/groupe elec.png"
+              },
+              {
+                "produit": "Enrouleur (élec)",
+                "avertissement": "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 55.12,
+                "prixTTC": 66.14,
+                "commentaire": "Existe moins cher (~30€) mais pas en simple câble et en 10m",
+                "lien": "https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/",
+                "image": "image/enrouleur chantier.png"
+              },
+              {
+                "produit": "Jerican",
+                "avertissement": "Consommation d'un château 10h → 9 à 12 L",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 11.12,
+                "prixTTC": 13.34,
+                "commentaire": "",
+                "lien": "https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063",
+                "image": "image/jerican.png"
+              },
+              {
+                "produit": "Plaque anti-vibration",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 9.2,
+                "prixTTC": 11.04,
+                "commentaire": "Sous le groupe électrogène",
+                "lien": "https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd",
+                "image": "image/plaque vibration.png"
+              },
+              {
+                "produit": "Bâche protection",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 8.8,
+                "prixTTC": 10.56,
+                "commentaire": "Humidité sol / saleté",
+                "lien": "https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction/dp/B0CHJW6T4Y",
+                "image": "image/bache.png"
+              },
+              {
+                "produit": "Diable rigide STANDERS",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 43.12,
+                "prixTTC": 51.74,
+                "commentaire": "",
+                "lien": "https://www.leroymerlin.fr/produits/diable-rigide-standers-charge-garantie-200-kg-85106882.html",
+                "image": "image/diable.png"
+              }
+            ]
+          },
+          "fraisRecurrent": {
+            "rows": [
+              {
+                "intitule": "Essence SP98",
+                "commentaire": "~12 L par jour de location",
+                "usure": 12,
+                "prixHT": 2,
+                "prixTTC": 2,
+                "coutParLoc": 24
+              },
+              {
+                "intitule": "Lingette micro fibre",
+                "commentaire": "Pack de 20 pour nettoyage",
+                "usure": 0.1,
+                "prixHT": 9.52,
+                "prixTTC": 11.42,
+                "coutParLoc": 1.14
+              },
+              {
+                "intitule": "Dégraissant produit",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 41.52,
+                "prixTTC": 51.9,
+                "coutParLoc": 5.19
+              },
+              {
+                "intitule": "Huile 4T",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 17.6,
+                "prixTTC": 21.12,
+                "coutParLoc": 2.11
+              }
+            ]
+          },
+          "fraisInitiaux": {
+            "rows": [
+              {
+                "intitule": "Création SARL — Annonce légale",
+                "prixTTC": 200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Création SARL — Greffe / immatriculation",
+                "prixTTC": 270,
+                "remarque": ""
+              },
+              {
+                "intitule": "Expert comptable — Accompagnement création",
+                "prixTTC": 500,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisMaintenance": {
+            "rows": [
+              {
+                "intitule": "Contrôle technique",
+                "prixTTC": 300,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisRecurrentsAnnuels": {
+            "rows": [
+              {
+                "intitule": "RC Pro",
+                "prixTTC": 900,
+                "remarque": "Responsabilité Civile Professionnelle"
+              },
+              {
+                "intitule": "Assurance multirisque matériel professionnel",
+                "prixTTC": null,
+                "computed": "assurance_materiel",
+                "remarque": "6 % du coût du matériel (photobooths + châteaux achat + électrogène)"
+              },
+              {
+                "intitule": "Comptable",
+                "prixTTC": 1200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Compte bancaire pro",
+                "prixTTC": 120,
+                "remarque": "10 € / mois"
+              },
+              {
+                "intitule": "Hébergement",
+                "prixTTC": 70,
+                "remarque": ""
+              },
+              {
+                "intitule": "Nom de domaine + mail",
+                "prixTTC": 17,
+                "remarque": ""
+              }
+            ]
+          },
+          "photobooth": {
+            "rows": []
+          },
+          "fraisServicePhotobooth": {
+            "rows": []
+          },
+          "fraisMaintenancePhotobooth": {
+            "rows": []
+          }
+        }
+      }
+    },
+    {
+      "id": 1776362350136,
+      "name": "16/04/2026 à 19:59",
+      "savedAt": "2026-04-16T17:59:10.136Z",
+      "snap": {
+        "version": 1,
+        "savedAt": "2026-04-16T17:59:10.136Z",
+        "chateauUnits": [
+          {
+            "id": "main",
+            "label": "Château principal",
+            "isMain": true,
+            "prixAchat": 2382,
+            "prixLivraison": 178.8,
+            "prixLocation": 300,
+            "locationsMois": 1
+          }
+        ],
+        "photoboothUnits": [],
+        "customBlocks": [],
+        "data": {
+          "chateauGonflable": {
+            "rows": [
+              {
+                "produit": "Groupe électrogène",
+                "avertissement": "Technos inverter (bruit) = 64 dB\nAutonomie (+6/8h → prix x2 ou bruyant)",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 559.2,
+                "prixTTC": 699,
+                "commentaire": "Prix affiché TTC sur le site\n6 à 8 heures d'autonomie",
+                "lien": "https://www.leroymerlin.fr/produits/groupe-electrogene-silencieux-2200w-inverter-moteur-4t-essence-79-cm3-champion-protection-avr-autonomie-10-heures-generateur-85118083.html",
+                "image": "image/groupe elec.png"
+              },
+              {
+                "produit": "Enrouleur (élec)",
+                "avertissement": "Section 3G2.5 mm² 25m\nIP44 (extérieur)",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 55.12,
+                "prixTTC": 66.14,
+                "commentaire": "Existe moins cher (~30€) mais pas en simple câble et en 10m",
+                "lien": "https://www.bricodepot.fr/catalogue/enrouleur-de-chantier-25-m-nf/prod54950/",
+                "image": "image/enrouleur chantier.png"
+              },
+              {
+                "produit": "Jerican",
+                "avertissement": "Consommation d'un château 10h → 9 à 12 L",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 11.12,
+                "prixTTC": 13.34,
+                "commentaire": "",
+                "lien": "https://lp.carter-cash.com/accessoires/p/jerrican-plas20l-21017063",
+                "image": "image/jerican.png"
+              },
+              {
+                "produit": "Plaque anti-vibration",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 2,
+                "prixHT": 9.2,
+                "prixTTC": 11.04,
+                "commentaire": "Sous le groupe électrogène",
+                "lien": "https://www.castorama.fr/plaque-anti-vibration-en-caoutchouc-noir-diall/3663602993186_CAFR.prd",
+                "image": "image/plaque vibration.png"
+              },
+              {
+                "produit": "Bâche protection",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 8.8,
+                "prixTTC": 10.56,
+                "commentaire": "Humidité sol / saleté",
+                "lien": "https://www.amazon.fr/Imperm%C3%A9able-Industrielle-Multifonction/dp/B0CHJW6T4Y",
+                "image": "image/bache.png"
+              },
+              {
+                "produit": "Diable rigide STANDERS",
+                "avertissement": "",
+                "qte": 1,
+                "partage": 1,
+                "prixHT": 43.12,
+                "prixTTC": 51.74,
+                "commentaire": "",
+                "lien": "https://www.leroymerlin.fr/produits/diable-rigide-standers-charge-garantie-200-kg-85106882.html",
+                "image": "image/diable.png"
+              }
+            ]
+          },
+          "fraisRecurrent": {
+            "rows": [
+              {
+                "intitule": "Essence SP98",
+                "commentaire": "~12 L par jour de location",
+                "usure": 12,
+                "prixHT": 2,
+                "prixTTC": 2,
+                "coutParLoc": 24
+              },
+              {
+                "intitule": "Lingette micro fibre",
+                "commentaire": "Pack de 20 pour nettoyage",
+                "usure": 0.1,
+                "prixHT": 9.52,
+                "prixTTC": 11.42,
+                "coutParLoc": 1.14
+              },
+              {
+                "intitule": "Dégraissant produit",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 41.52,
+                "prixTTC": 51.9,
+                "coutParLoc": 5.19
+              },
+              {
+                "intitule": "Huile 4T",
+                "commentaire": "",
+                "usure": 0.1,
+                "prixHT": 17.6,
+                "prixTTC": 21.12,
+                "coutParLoc": 2.11
+              }
+            ]
+          },
+          "fraisInitiaux": {
+            "rows": [
+              {
+                "intitule": "Création SARL — Annonce légale",
+                "prixTTC": 200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Création SARL — Greffe / immatriculation",
+                "prixTTC": 270,
+                "remarque": ""
+              },
+              {
+                "intitule": "Expert comptable — Accompagnement création",
+                "prixTTC": 500,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisMaintenance": {
+            "rows": [
+              {
+                "intitule": "Contrôle technique",
+                "prixTTC": 300,
+                "remarque": ""
+              }
+            ]
+          },
+          "fraisRecurrentsAnnuels": {
+            "rows": [
+              {
+                "intitule": "RC Pro",
+                "prixTTC": 900,
+                "remarque": "Responsabilité Civile Professionnelle"
+              },
+              {
+                "intitule": "Assurance multirisque matériel professionnel",
+                "prixTTC": null,
+                "computed": "assurance_materiel",
+                "remarque": "6 % du coût du matériel (photobooths + châteaux achat + électrogène)"
+              },
+              {
+                "intitule": "Comptable",
+                "prixTTC": 1200,
+                "remarque": ""
+              },
+              {
+                "intitule": "Compte bancaire pro",
+                "prixTTC": 120,
+                "remarque": "10 € / mois"
+              },
+              {
+                "intitule": "Hébergement",
+                "prixTTC": 70,
+                "remarque": ""
+              },
+              {
+                "intitule": "Nom de domaine + mail",
+                "prixTTC": 17,
+                "remarque": ""
+              }
+            ]
+          },
+          "photobooth": {
+            "rows": []
+          },
+          "fraisServicePhotobooth": {
+            "rows": []
+          },
+          "fraisMaintenancePhotobooth": {
+            "rows": []
+          }
+        }
+      }
+    }
+  ]
+}

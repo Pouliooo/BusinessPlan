@@ -19,12 +19,7 @@
         <button class="nav-btn"        data-page="resume"                      >Résumé</button>
       </nav>
       <div class="header-actions">
-        <button class="btn-save" id="save-btn" title="Sauvegarder toutes les données">💾 Sauvegarder</button>
-        <button class="btn-export-file" id="export-file-btn" title="Exporter la configuration dans un fichier">⬇ Exporter</button>
-        <label class="btn-import-file" title="Importer une configuration depuis un fichier">
-          ⬆ Importer
-          <input type="file" id="import-file-input" accept=".bpsave,.json" style="display:none" />
-        </label>
+        <button class="btn-history" id="history-btn" title="Historique des sauvegardes" style="display:none">🕐 Historique</button>
       </div>
     </div>
     <div class="save-toast" id="save-toast"></div>
@@ -37,35 +32,37 @@
 
     <div class="tabs-container">
 
+      <!-- Barre d'outils — centrée, tout en haut -->
+      <div class="table-toolbar">
+        <button class="btn-edit-mode" id="edit-mode-btn" title="Activer l'édition des tableaux">
+          ✏️ Modifier
+        </button>
+        <button class="btn-detail-save" id="detail-save-btn" title="Sauvegarder les tableaux">
+          💾 Sauvegarder
+        </button>
+      </div>
+
       <!-- Onglets -->
-      <div class="tabs-header" role="tablist">
-        <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="chateau"            >Château Gonflable</button>
-        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="photobooth"        >Photobooth</button>
-        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-initiaux"    >Frais Initiaux</button>
-        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-recurrents"  >Frais récurrents</button>
+      <div class="tabs-header" role="tablist" id="tabs-header">
+        <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="chateau"          >Château Gonflable</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="photobooth"       >Photobooth</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-initiaux"   >Frais Initiaux</button>
+        <button class="tab-btn"        role="tab" aria-selected="false" data-tab="frais-recurrents" >Frais récurrents</button>
+        <button class="tab-add-btn" id="tab-add-btn" title="Nouvelle catégorie">＋ Nouvelle catégorie</button>
+      </div>
+      <!-- Formulaire inline création d'onglet -->
+      <div class="tab-new-form hidden" id="tab-new-form">
+        <div class="tab-type-select">
+          <button class="tab-type-btn active" data-type="item">📦 Item</button>
+          <button class="tab-type-btn"        data-type="frais">💶 Frais</button>
+        </div>
+        <input type="text" id="tab-new-input" class="tab-new-input" placeholder="Nom (ex : Tonnelle, Sono…)" maxlength="32" />
+        <button class="btn-primary btn-sm" id="tab-new-confirm">✓ Créer</button>
+        <button class="btn-secondary btn-sm" id="tab-new-cancel">Annuler</button>
       </div>
 
       <!-- Contenu de l'onglet actif -->
       <div class="tab-content-area" role="tabpanel">
-
-        <!-- Barre d'outils -->
-        <div class="table-toolbar">
-          <div class="search-wrapper">
-            <span class="search-icon">🔍</span>
-            <input
-              type="text"
-              class="search-input"
-              id="search-input"
-              placeholder="Rechercher dans le tableau…"
-              autocomplete="off"
-              aria-label="Rechercher"
-            />
-            <button class="search-clear hidden" id="search-clear" aria-label="Effacer">✕</button>
-          </div>
-          <button class="btn-secondary" id="export-csv-btn" title="Exporter le tableau courant en CSV">
-            ⬇ Export CSV
-          </button>
-        </div>
 
         <!-- Tableau (rempli dynamiquement) -->
         <div class="table-wrapper" id="table-wrapper" aria-live="polite"></div>
@@ -81,33 +78,35 @@
   ══════════════════════════════════════════ -->
   <main class="page hidden" id="page-resume" role="main">
 
+    <!-- ── TITRE GLOBAL RÉSUMÉ ────────────────────────── -->
+    <div class="resume-page-header">
+      <h1 class="resume-page-title">📋 Business Plan</h1>
+      <div class="resume-page-actions">
+        <button class="btn-save" id="resume-save-btn" title="Sauvegarder une version">💾 Sauvegarder</button>
+        <button class="btn-history" id="resume-history-btn" title="Historique des sauvegardes">🕐 Historique</button>
+      </div>
+    </div>
+
     <!-- ── CONFIGURATION ────────────────────────────── -->
     <div class="resume-section-header">
       <span class="resume-section-icon">⚙️</span>
       <h2>Configuration</h2>
     </div>
 
-    <div class="card" id="chateaux-section">
+    <div class="card" id="units-section">
       <div class="section-header">
-        <div class="section-title-group">
-          <h2 class="card-title">🏰 Mes Châteaux</h2>
-          <span class="unit-cost-badge" id="chateau-cost-badge"></span>
-        </div>
-        <button class="btn-primary" id="add-chateau-btn">+ Ajouter un château</button>
+        <h2 class="card-title">📦 Mes Équipements</h2>
+        <button class="btn-primary" id="add-unit-btn">+ Ajouter un item</button>
       </div>
-      <div id="chateau-units-container"></div>
-    </div>
-
-    <div class="card" id="photobooths-section">
-      <div class="section-header">
-        <div class="section-title-group">
-          <h2 class="card-title">📷 Mes Photobooths</h2>
-          <span class="unit-cost-badge" id="photobooth-cost-badge"></span>
-        </div>
-        <button class="btn-primary" id="add-photobooth-btn">+ Ajouter un photobooth</button>
+      <div class="unit-new-form hidden" id="unit-new-form">
+        <select class="unit-type-select" id="unit-type-select">
+          <option value="chateau">🏰 Château Gonflable</option>
+          <option value="photobooth">📷 Photobooth</option>
+        </select>
+        <button class="btn-primary btn-sm"   id="unit-new-confirm">✓ Ajouter</button>
+        <button class="btn-secondary btn-sm" id="unit-new-cancel">Annuler</button>
       </div>
-      <p class="hint" id="photobooth-hint">Aucun photobooth ajouté.</p>
-      <div id="photobooth-units-container"></div>
+      <div id="units-container"></div>
     </div>
 
     <!-- ── BUSINESS PLAN ─────────────────────────────── -->
@@ -122,7 +121,20 @@
     <!-- Simulation globale — résultats agrégés -->
     <div class="card" id="simulation-card">
       <h2 class="card-title">📊 Simulation globale</h2>
+
+      <!-- KPIs principaux -->
+      <div class="sim-kpi-row" id="sim-kpi-row"></div>
+
+      <!-- Détails -->
       <div class="be-results" id="be-results"></div>
+
+      <!-- Graphiques -->
+      <div class="charts-grid">
+        <div class="chart-card chart-wide">
+          <div class="chart-title">📈 Amortissement de l'investissement</div>
+          <canvas id="chart-breakeven"></canvas>
+        </div>
+      </div>
     </div>
 
     <!-- Blocs personnalisés -->
@@ -141,7 +153,6 @@
     <!-- Barre d'export -->
     <div class="export-bar">
       <button class="btn-secondary" id="print-btn">🖨 Imprimer / PDF</button>
-      <button class="btn-secondary" id="export-summary-csv-btn">⬇ Export CSV résumé</button>
     </div>
 
   </main><!-- /page-resume -->
@@ -161,6 +172,63 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════
+       DRAWER HISTORIQUE
+  ══════════════════════════════════════════ -->
+  <div class="history-overlay hidden" id="history-overlay" role="dialog" aria-modal="true" aria-label="Historique des sauvegardes">
+    <div class="history-drawer" id="history-drawer">
+
+      <div class="history-drawer-header">
+        <div class="history-drawer-title">
+          <span class="history-drawer-icon">🕐</span>
+          <h2>Historique</h2>
+        </div>
+        <button class="history-close-btn" id="history-close" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="history-list-header">
+        <span id="history-count"></span>
+      </div>
+
+      <div class="history-list" id="history-list" role="list">
+        <!-- rempli dynamiquement -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       MODALE NOM DE SAUVEGARDE
+  ══════════════════════════════════════════ -->
+  <div class="savename-overlay hidden" id="savename-overlay" role="dialog" aria-modal="true" aria-labelledby="savename-title">
+    <div class="savename-panel">
+      <div class="savename-header">
+        <span class="savename-title" id="savename-title">💾 Nommer la sauvegarde</span>
+      </div>
+      <div class="savename-body">
+        <label class="savename-label" for="savename-input">Nom</label>
+        <input type="text" id="savename-input" class="savename-input"
+               placeholder="Ex : Scénario optimiste" maxlength="80" />
+      </div>
+      <div class="savename-footer">
+        <button class="btn-secondary" id="savename-cancel">Annuler</button>
+        <button class="btn-primary"   id="savename-confirm">💾 Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LOADER DÉMARRAGE
+  ══════════════════════════════════════════ -->
+  <div id="app-loader" class="app-loader">
+    <div class="loader-box">
+      <div class="loader-spinner"></div>
+      <p class="loader-title">Chargement en cours…</p>
+      <p class="loader-sub">et ouais les mecs le "back" c'est gratuit https://jsonbin.io/ donc ça prend du temps</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="data.js"></script>
   <script src="script.js"></script>
 </body>

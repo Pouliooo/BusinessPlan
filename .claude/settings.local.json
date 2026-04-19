@@ -8,7 +8,13 @@
       "Bash(node --check d:\\\\BP\\\\script.js)",
       "Bash(node --check d:\\\\BP\\\\data.js)",
       "Bash(node --check \"d:\\\\BP\\\\script.js\")",
-      "Bash(node --check \"d:\\\\BP\\\\data.js\")"
+      "Bash(node --check \"d:\\\\BP\\\\data.js\")",
+      "Bash(curl -i https://api.npoint.io/bb55b1eb8052a7b3f135)",
+      "Bash(curl -v https://api.npoint.io/bb55b1eb8052a7b3f135)",
+      "WebFetch(domain:api.npoint.io)",
+      "WebFetch(domain:www.npoint.io)",
+      "Bash(curl -s -X POST \"https://api.npoint.io/bb55b1eb8052a7b3f135\" -H \"Content-Type: application/json\" -d \"{\\\\\"current\\\\\":null,\\\\\"history\\\\\":[]}\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
+      "Bash(curl -s -X PUT https://api.jsonbin.io/v3/b/69e12a91856a6821893ff825 -H 'Content-Type: application/json' -H 'X-Master-Key: $2a$10$xPhBGIhnaRlxEbEFXCcFVekKcL2CRMXytb1rwlZayg4pFnBPtoonK' -d '{\"current\":null,\"history\":[]}' -w '\\\\nHTTP_STATUS:%{http_code}')"
     ]
   }
 }

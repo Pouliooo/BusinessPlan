@@ -243,11 +243,73 @@ const DATA = {
     subtitle: "Équipement et accessoires — à compléter",
     accentClass: "accent-purple",
     columns: [
-      { key: "produit",     label: "Produit",     type: "text"  },
-      { key: "prixTTC",     label: "Prix TTC",    type: "price" },
-      { key: "commentaire", label: "Commentaire", type: "text"  }
+      { key: "tag",         label: "Tag",           type: "badge"  },
+      { key: "produit",     label: "Produit",       type: "text"   },
+      { key: "qte",         label: "Qté",           type: "number" },
+      { key: "prixHT",      label: "Prix unit. HT", type: "price"  },
+      { key: "commentaire", label: "Commentaire",   type: "text"   },
+      { key: "lien",        label: "Lien",          type: "link"   },
+      { key: "totalHT",     label: "Total HT",      type: "price", isTotal: true,
+        compute: row => (parseFloat(row.prixHT) || 0) * Math.max(1, parseInt(row.qte) || 1) }
     ],
-    rows: []
+    rows: [
+      {
+        tag: "",
+        produit: "Reflex EOS 450D",
+        qte: 1, prixHT: 216.00,
+        commentaire: "Reconditionné\ngPhoto2 (logiciel RPi)",
+        lien: ""
+      },
+      {
+        tag: "",
+        produit: "Raspberry Pi 4 (8 Go)",
+        qte: 1, prixHT: 105.00,
+        commentaire: "gère écran tactile + gPhoto2 +",
+        lien: ""
+      },
+      {
+        tag: "",
+        produit: "Imprimante DP-DS620",
+        qte: 1, prixHT: 970.40,
+        commentaire: "",
+        lien: ""
+      },
+      {
+        tag: "STRUCTURE",
+        produit: "Tablette chêne noueux brut",
+        qte: 3, prixHT: 32.00,
+        commentaire: "L.120 x l.40 cm x Ep.20 mm",
+        lien: ""
+      },
+      {
+        tag: "STRUCTURE",
+        produit: "Vis à bois 4×40mm",
+        qte: 1, prixHT: 5.00,
+        commentaire: "boîte de 50",
+        lien: ""
+      },
+      {
+        tag: "STRUCTURE",
+        produit: "Colle à bois PU",
+        qte: 1, prixHT: 8.00,
+        commentaire: "",
+        lien: ""
+      },
+      {
+        tag: "STRUCTURE",
+        produit: "Papier abrasif grain",
+        qte: 1, prixHT: 5.00,
+        commentaire: "80, 120, 240",
+        lien: ""
+      },
+      {
+        tag: "STRUCTURE",
+        produit: "Huile Osmo naturelle",
+        qte: 1, prixHT: 15.00,
+        commentaire: "",
+        lien: ""
+      }
+    ]
   },
 
   // Photobooth — Frais de service par journée (à compléter)

@@ -27,7 +27,11 @@ const state = {
   // Unités photobooth pour la simulation
   photoboothUnits: [],
   // IDs des cartes château dont le détail est déplié
-  expandedUnits: new Set()
+  expandedUnits: new Set(),
+  // Photos de plan par type : { chateau: [], photobooth: [], [tabId]: [] }
+  planPhotos: { chateau: [], photobooth: [] },
+  // Groupes ouverts dans les tableaux : Set de "dsKey:tagValue" (fermés par défaut)
+  expandedGroups: new Set()
 };
 
 
@@ -500,6 +504,114 @@ function renderMultiSectionTab(sections) {
       btn.addEventListener('click', () => addFirstRow(btn.dataset.datasetKey));
     });
   });
+
+  // ── Section Plan (photos) en bas du tab ──────────────────
+  const itemTypes = ['chateau', 'photobooth', ...state.customTabs.filter(t => t.type === 'item').map(t => t.id)];
+  if (!itemTypes.includes(state.tab)) return;
+
+  const tabType = state.tab;
+  const planSection = document.createElement('div');
+  planSection.className = 'plan-tab-section';
+  planSection.innerHTML = renderPlanSectionHTML(tabType);
+  wrapper.appendChild(planSection);
+
+  // Input fichier caché — branché directement
+  const fileInput = planSection.querySelector('.plan-file-input');
+  planSection.querySelector('.btn-plan-add-file')?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', e => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    let done = 0;
+    files.forEach(file => {
+      compressImage(file, 1200, 0.75).then(src => {
+        if (!state.planPhotos[tabType]) state.planPhotos[tabType] = [];
+        state.planPhotos[tabType].push({ src, name: file.name });
+        if (++done === files.length) { renderTable(); markResumeDirty(); scheduleAutoSave(); }
+      });
+    });
+    e.target.value = '';
+  });
+
+  planSection.querySelector('.btn-plan-add-url')?.addEventListener('click', () => {
+    const url = prompt('URL de l\'image :');
+    if (!url?.trim()) return;
+    if (!state.planPhotos[tabType]) state.planPhotos[tabType] = [];
+    state.planPhotos[tabType].push({ src: url.trim(), name: url.trim().split('/').pop() });
+    renderTable(); markResumeDirty(); scheduleAutoSave();
+  });
+
+  planSection.querySelectorAll('.plan-tab-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!state.planPhotos[tabType]) return;
+      state.planPhotos[tabType].splice(parseInt(btn.dataset.idx), 1);
+      renderTable(); markResumeDirty();
+    });
+  });
+
+  planSection.querySelectorAll('.plan-tab-img').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.src));
+  });
+}
+
+/** Redimensionne et compresse une image avant stockage base64 */
+function compressImage(file, maxPx, quality) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Lightbox in-page pour visualiser une image sans window.open */
+function openLightbox(src) {
+  let lb = document.getElementById('plan-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'plan-lightbox';
+    lb.innerHTML = `<div class="lb-backdrop"></div><img class="lb-img" /><button class="lb-close">✕</button>`;
+    document.body.appendChild(lb);
+    lb.querySelector('.lb-backdrop').addEventListener('click', () => lb.classList.add('hidden'));
+    lb.querySelector('.lb-close').addEventListener('click',    () => lb.classList.add('hidden'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') lb?.classList.add('hidden'); });
+  }
+  lb.querySelector('.lb-img').src = src;
+  lb.classList.remove('hidden');
+}
+
+function renderPlanSectionHTML(type) {
+  const photos = state.planPhotos[type] || [];
+  return `
+    <div class="plan-tab-header">
+      <span class="plan-tab-title">📋 Plan & Photos</span>
+      <div class="plan-tab-actions">
+        <input type="file" class="plan-file-input" accept="image/*" multiple style="display:none">
+        <button class="btn-secondary btn-sm btn-plan-add-file">📁 Ajouter fichier</button>
+        <button class="btn-secondary btn-sm btn-plan-add-url">🔗 URL</button>
+      </div>
+    </div>
+    <div class="plan-tab-gallery">
+      ${photos.length === 0 ? '<p class="plan-empty">Aucune photo. Ajoutez un fichier ou une URL.</p>' : ''}
+      ${photos.map((p, i) => `
+        <div class="plan-photo-card">
+          <img src="${escHtml(p.src)}" alt="${escHtml(p.name||'')}" class="plan-tab-img" />
+          <div class="plan-photo-bar">
+            <span class="plan-photo-name">${escHtml(p.name||`Photo ${i+1}`)}</span>
+            <button class="btn-danger plan-tab-del" data-idx="${i}">✕</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
 }
 
 function addFirstRow(dsKey) {
@@ -547,28 +659,100 @@ function buildTableHTML(dataset, rows, datasetKey) {
   html += '</tr></thead>';
 
   /* ── Corps ────────────────────────────── */
-  const colSpan = columns.length + (state.editMode ? 1 : 0);
+  const colSpan   = columns.length + (state.editMode ? 1 : 0);
+  const hasTagCol = columns.some(c => c.key === 'tag');
   html += '<tbody>';
+
+  const buildRowHTML = row => {
+    const origIdx    = dataset.rows.indexOf(row);
+    const isComputed = !!row.computed;
+    let r = `<tr data-row-idx="${origIdx}"${isComputed ? ' class="row-computed"' : ''}>`;
+    columns.forEach(col => { r += buildInlineCell(col, row, dataset, origIdx, hasHT); });
+    if (state.editMode) {
+      r += isComputed
+        ? `<td class="col-actions"></td>`
+        : `<td class="col-actions"><button class="btn-row-delete" data-row-idx="${origIdx}" title="Supprimer">✕</button></td>`;
+    }
+    r += '</tr>';
+    return r;
+  };
+
   if (rows.length === 0) {
     html += `<tr><td colspan="${colSpan}" style="text-align:center;padding:36px;color:#94a3b8;">
                Aucun résultat pour cette recherche.
              </td></tr>`;
-  } else {
+  } else if (hasTagCol && datasetKey) {
+    // Groupement par tag
+    const groups   = new Map(); // tag → rows[]
+    const noTag    = [];
     rows.forEach(row => {
-      const origIdx    = dataset.rows.indexOf(row);
-      const isComputed = !!row.computed;
-      html += `<tr data-row-idx="${origIdx}"${isComputed ? ' class="row-computed"' : ''}>`;
-      columns.forEach(col => {
-        html += buildInlineCell(col, row, dataset, origIdx, hasHT);
-      });
-      if (state.editMode) {
-        html += isComputed
-          ? `<td class="col-actions"></td>`
-          : `<td class="col-actions"><button class="btn-row-delete" data-row-idx="${origIdx}" title="Supprimer">✕</button></td>`;
+      const tag = (row.tag || '').toString().trim();
+      if (tag) {
+        if (!groups.has(tag)) groups.set(tag, []);
+        groups.get(tag).push(row);
+      } else {
+        noTag.push(row);
       }
-      html += '</tr>';
     });
+
+    // Lignes sans tag — rendues normalement
+    noTag.forEach(row => { html += buildRowHTML(row); });
+
+    // Groupes
+    const totalCol = columns.find(c => c.isTotal) || columns.find(c => c.type === 'price' && c.key !== 'tag');
+    groups.forEach((groupRows, tag) => {
+      const gKey      = `${datasetKey}:${tag}`;
+      const collapsed = !state.expandedGroups.has(gKey);
+      const groupSum  = totalCol
+        ? groupRows.reduce((s, r) => {
+            const v = totalCol.compute ? totalCol.compute(r) : (parseFloat(r[totalCol.key]) || 0);
+            const htToTtc = totalCol.key === 'prixTTC' && !hasHT;
+            return s + (htToTtc ? (v / 1.2) : v);
+          }, 0)
+        : null;
+
+      // Noms des produits pour le résumé
+      const nameKey  = columns.find(c => c.key === 'produit' || c.key === 'intitule')?.key || columns.find(c => c.type === 'text' && c.key !== 'tag' && c.key !== 'commentaire' && c.key !== 'lien')?.key;
+      const names    = nameKey ? groupRows.map(r => r[nameKey]).filter(Boolean).join(', ') : '';
+      const nameSpan = names ? `<span class="group-names">${escHtml(names)}</span>` : '';
+
+      // Ligne résumé du groupe (toujours affichée)
+      html += `<tr class="group-header-row ${collapsed ? 'group-collapsed' : 'group-expanded'}"
+                   data-group-key="${escHtml(gKey)}" data-group-tag="${escHtml(tag)}">
+        <td><span class="badge ${badgeCls(tag)}">${escHtml(tag)}</span> <span class="group-toggle-icon">${collapsed ? '▶' : '▼'}</span></td>
+        <td colspan="${colSpan - 2}" class="group-summary-label">
+          ${nameSpan}
+        </td>
+        <td class="price-cell group-summary-total">${groupSum != null ? `<strong>${fmtPrice(groupSum)}</strong>` : ''}</td>
+        ${state.editMode ? '<td class="col-actions"></td>' : ''}
+      </tr>`;
+
+      // Lignes individuelles (masquées si replié)
+      if (!collapsed) {
+        groupRows.forEach(row => {
+          // Masquer la cellule tag dans les lignes enfant (déjà visible dans le header)
+          const origIdx    = dataset.rows.indexOf(row);
+          const isComputed = !!row.computed;
+          let r = `<tr class="group-child-row" data-row-idx="${origIdx}"${isComputed ? ' class="row-computed"' : ''}>`;
+          columns.forEach(col => {
+            r += col.key === 'tag'
+              ? `<td class="text-cell cell-readonly group-child-tag"></td>`
+              : buildInlineCell(col, row, dataset, origIdx, hasHT);
+          });
+          if (state.editMode) {
+            r += isComputed
+              ? `<td class="col-actions"></td>`
+              : `<td class="col-actions"><button class="btn-row-delete" data-row-idx="${origIdx}" title="Supprimer">✕</button></td>`;
+          }
+          r += '</tr>';
+          html += r;
+        });
+      }
+    });
+  } else {
+    rows.forEach(row => { html += buildRowHTML(row); });
   }
+
   if (state.editMode && datasetKey) {
     html += `<tr class="row-add"><td colspan="${colSpan}">
                <button class="btn-add-row" data-dataset-key="${escHtml(datasetKey)}">+ Ajouter une ligne</button>
@@ -597,7 +781,8 @@ function buildInlineCell(col, row, dataset, origIdx, hasHT) {
     let val = col.compute ? col.compute(row) : row[col.key];
     // prixTTC dans dataset sans prixHT → afficher en HT
     if (col.key === 'prixTTC' && !hasHT && val != null) val = val / 1.2;
-    return `<td class="${cellCls} cell-readonly">${renderCellShort(val, col.type)}</td>`;
+    const computeAttr = col.compute ? ` data-computed-col="${escHtml(col.key)}"` : '';
+    return `<td class="${cellCls} cell-readonly"${computeAttr}>${renderCellShort(val, col.type)}</td>`;
   }
 
   const val       = row[col.key];
@@ -677,6 +862,18 @@ function attachInlineTableListeners(tableEl, datasetKey) {
   if (!dataset) return;
   const hasHT = dataset.columns.some(c => c.key === 'prixHT');
 
+  // ── Toggle groupe tag ─────────────────────────────────────
+  tableEl.querySelectorAll('.group-header-row').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const gKey = tr.dataset.groupKey;
+      if (!gKey) return;
+      state.expandedGroups.has(gKey)
+        ? state.expandedGroups.delete(gKey)
+        : state.expandedGroups.add(gKey);
+      renderTable();
+    });
+  });
+
   // ── Édition de cellule ────────────────────────────────────
   tableEl.querySelectorAll('.cell-input').forEach(input => {
     input.addEventListener('change', () => {
@@ -700,9 +897,9 @@ function attachInlineTableListeners(tableEl, datasetKey) {
             row.prixTTC = num != null ? Math.round(num * 1.2 * 100) / 100 : null;
             const tr = input.closest('tr');
             if (tr) {
-              tr.querySelectorAll('td.cell-readonly.price-cell').forEach(td => {
-                td.innerHTML = renderCellShort(row.prixTTC, 'price');
-              });
+              // cibler uniquement la cellule prixTTC (pas les colonnes calculées)
+              const ttcCell = tr.querySelector('td.cell-readonly.price-cell:not([data-computed-col])');
+              if (ttcCell) ttcCell.innerHTML = renderCellShort(row.prixTTC, 'price');
             }
           }
         }
@@ -711,6 +908,18 @@ function attachInlineTableListeners(tableEl, datasetKey) {
       }
 
       recomputeDataTotals();
+      // Rafraîchir les cellules calculées de la ligne (préserve le focus sur les autres)
+      const tr = tableEl.querySelector(`tr[data-row-idx="${rowIdx}"]`);
+      if (tr) {
+        dataset.columns.forEach(c => {
+          if (!c.compute) return;
+          const td = tr.querySelector(`[data-computed-col="${c.key}"]`);
+          if (!td) return;
+          let v = c.compute(row);
+          if (c.key === 'prixTTC' && !hasHT && v != null) v = v / 1.2;
+          td.innerHTML = renderCellShort(v, c.type);
+        });
+      }
       // Met à jour uniquement le pied (préserve le focus)
       const tfoot = tableEl.querySelector('tfoot');
       if (tfoot) {
@@ -1251,13 +1460,14 @@ function getUnitInvest(unit) {
 function calcUnitStats(unit, coutParLoc) {
   const prixLoc   = parseFloat(unit.prixLocation)  || 0;
   const nbMois    = parseFloat(unit.locationsMois) || 0;
-  const invest    = getUnitInvest(unit);
+  const qte       = Math.max(1, parseInt(unit.quantite) || 1);
+  const invest    = getUnitInvest(unit) * qte;
   const marge     = prixLoc - coutParLoc;
   return {
     marge,
-    caMensuel:  prixLoc * nbMois,
-    caAnnuel:   prixLoc * nbMois * 12,
-    chargesVar: coutParLoc * nbMois * 12,
+    caMensuel:  prixLoc * nbMois * qte,
+    caAnnuel:   prixLoc * nbMois * 12 * qte,
+    chargesVar: coutParLoc * nbMois * 12 * qte,
     invest,
     seuilLocs:  marge > 0 ? Math.ceil(invest / marge) : Infinity
   };
@@ -1362,6 +1572,12 @@ function buildUnitCardHTML(unit, s, cfg = {}, unitIndex = 0) {
                  data-unit-id="${unit.id}" data-field="locationsMois"
                  value="${unit.locationsMois || ''}" min="0" step="1" placeholder="4">
         </div>
+        <div class="unit-field">
+          <div class="unit-field-label">Quantité</div>
+          <input type="number" class="unit-input"
+                 data-unit-id="${unit.id}" data-field="quantite"
+                 value="${unit.quantite || 1}" min="1" step="1" placeholder="1">
+        </div>
       </div>
 
       <div class="unit-stats" data-stats-for="${unit.id}">
@@ -1373,8 +1589,9 @@ function buildUnitCardHTML(unit, s, cfg = {}, unitIndex = 0) {
         <button class="unit-expand-btn" data-unit-id="${unit.id}">
           ${expanded ? '▲ Masquer les équipements' : '▼ Voir les équipements'}
         </button>
-      </div>
-      ${expanded ? `<div class="unit-detail">${buildUnitDetailHTML(investDsKey, unitIndex)}</div>` : ''}` : ''}
+      </div>` : ''}
+      ${showExpand && expanded ? `<div class="unit-detail">${buildUnitDetailHTML(investDsKey, unitIndex)}</div>` : ''}
+      ${showExpand && expanded ? `<div class="unit-detail">${buildUnitDetailHTML(investDsKey, unitIndex)}</div>` : ''}
     </div>`;
 }
 
@@ -1477,7 +1694,7 @@ function attachUnitsListeners(container) {
   });
 
   const htFields  = new Set(['prixAchat', 'prixLivraison']);
-  const numFields = new Set(['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois']);
+  const numFields = new Set(['prixAchat', 'prixLivraison', 'prixLocation', 'locationsMois', 'quantite']);
 
   container.querySelectorAll('.unit-input').forEach(input => {
     input.addEventListener('input', () => {
@@ -1506,6 +1723,88 @@ function attachUnitsListeners(container) {
   });
 }
 
+
+/* ════════════════════════════════════════════════════════════
+   PLAN PHOTOS — galerie par type d'item
+════════════════════════════════════════════════════════════ */
+
+function openPlanModal(type) {
+  if (!state.planPhotos[type]) state.planPhotos[type] = [];
+  const overlay = document.getElementById('modal-overlay');
+  const title   = document.getElementById('modal-title');
+  const content = document.getElementById('modal-content');
+  const footer  = document.getElementById('modal-footer');
+
+  const typeLabel = type === 'chateau' ? 'Château Gonflable'
+    : type === 'photobooth' ? 'Photobooth'
+    : (state.customTabs.find(t => t.id === type)?.label || type);
+
+  title.textContent = `📋 Plan — ${typeLabel}`;
+  footer.classList.remove('hidden');
+
+  const render = () => {
+    const photos = state.planPhotos[type] || [];
+    content.innerHTML = `
+      <div class="plan-gallery">
+        ${photos.length === 0 ? '<p class="plan-empty">Aucune photo. Ajoutez un fichier ou une URL.</p>' : ''}
+        ${photos.map((p, i) => `
+          <div class="plan-photo-card">
+            <img src="${escHtml(p.src)}" alt="${escHtml(p.name || '')}" class="plan-photo-img" />
+            <div class="plan-photo-bar">
+              <span class="plan-photo-name">${escHtml(p.name || `Photo ${i+1}`)}</span>
+              <button class="btn-danger plan-photo-del" data-idx="${i}">✕</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    `;
+    content.querySelectorAll('.plan-photo-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.planPhotos[type].splice(parseInt(btn.dataset.idx), 1);
+        render(); updatePlanBtn(type); markResumeDirty();
+      });
+    });
+    content.querySelectorAll('.plan-photo-img').forEach(img => {
+      img.addEventListener('click', () => {
+        const w = window.open('', '_blank');
+        w.document.write(`<img src="${img.src}" style="max-width:100%;height:auto">`);
+      });
+    });
+  };
+
+  footer.innerHTML = `
+    <label class="btn-primary btn-sm" style="cursor:pointer">
+      📁 Fichier
+      <input type="file" accept="image/*" multiple style="display:none" id="plan-file-input">
+    </label>
+    <button class="btn-secondary btn-sm" id="plan-url-btn">🔗 URL</button>
+  `;
+  footer.querySelector('#plan-file-input').addEventListener('change', e => {
+    const files = Array.from(e.target.files);
+    let done = 0;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        if (!state.planPhotos[type]) state.planPhotos[type] = [];
+        state.planPhotos[type].push({ src: ev.target.result, name: file.name });
+        done++;
+        if (done === files.length) { render(); updatePlanBtn(type); markResumeDirty(); scheduleAutoSave(); }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  });
+  footer.querySelector('#plan-url-btn').addEventListener('click', () => {
+    const url = prompt('URL de l\'image :');
+    if (!url?.trim()) return;
+    if (!state.planPhotos[type]) state.planPhotos[type] = [];
+    state.planPhotos[type].push({ src: url.trim(), name: url.trim().split('/').pop() });
+    render(); updatePlanBtn(type); markResumeDirty(); scheduleAutoSave();
+  });
+
+  render();
+  overlay.classList.remove('hidden');
+  document.getElementById('modal-close').onclick = () => overlay.classList.add('hidden');
+}
 
 /* ════════════════════════════════════════════════════════════
    SIMULATEUR DE RENTABILITÉ — agrégé sur tous les châteaux
@@ -1871,10 +2170,11 @@ function saveData(showNotif = false) {
 function loadData() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
+    if (!raw) { applyDefaultPlanPhotos(); return; }
     applySnapshot(JSON.parse(raw));
   } catch(e) {
     console.error('Erreur chargement sauvegarde', e);
+    applyDefaultPlanPhotos();
   }
 }
 
@@ -1904,9 +2204,23 @@ function buildSnapshot() {
     customUnits:     state.customUnits,
     customBlocks:    state.customBlocks,
     customTabs:      state.customTabs,
+    planPhotos:      state.planPhotos,
     data:            Object.fromEntries(STATIC_KEYS.map(k => [k, { rows: DATA[k]?.rows ?? [] }])),
     customData:      buildCustomData()
   };
+}
+
+const DEFAULT_PHOTOBOOTH_PHOTOS = [
+  { src: 'image/photobooth_plan2d.png',  name: 'Plan 2D — Pièces à découper', _default: true },
+  { src: 'image/photobooth_photo.jpg',   name: 'Rendu photobooth',             _default: true }
+];
+
+function applyDefaultPlanPhotos() {
+  if (!state.planPhotos.photobooth) state.planPhotos.photobooth = [];
+  DEFAULT_PHOTOBOOTH_PHOTOS.forEach(def => {
+    const already = state.planPhotos.photobooth.some(p => p.src === def.src || p._default && p.name === def.name);
+    if (!already) state.planPhotos.photobooth.unshift({ ...def });
+  });
 }
 
 function applySnapshot(snap) {
@@ -1916,6 +2230,9 @@ function applySnapshot(snap) {
     state.photoboothUnits = snap.photoboothUnits;
   if (snap.customUnits && typeof snap.customUnits === 'object')
     state.customUnits = snap.customUnits;
+  if (snap.planPhotos && typeof snap.planPhotos === 'object')
+    state.planPhotos = snap.planPhotos;
+  applyDefaultPlanPhotos();
   if (Array.isArray(snap.customBlocks))
     state.customBlocks    = snap.customBlocks;
 
@@ -1943,10 +2260,19 @@ function applySnapshot(snap) {
   if (snap.data) {
     Object.keys(snap.data).forEach(k => {
       if (DATA[k] && Array.isArray(snap.data[k]?.rows)) {
+        const savedRows = snap.data[k].rows.filter(r =>
+          r && Object.values(r).some(v => v !== null && v !== '' && v !== undefined)
+        );
+        if (savedRows.length === 0) return; // garde les defaults de data.js
         const origRows = DATA[k].rows;
-        DATA[k].rows = snap.data[k].rows.map((savedRow, i) => {
+        DATA[k].rows = savedRows.map((savedRow, i) => {
           const image = (origRows[i] || {}).image;
-          return image ? { ...savedRow, image } : { ...savedRow };
+          const row = image ? { ...savedRow, image } : { ...savedRow };
+          // migration prixTTC → prixHT pour photobooth
+          if (k === 'photobooth' && row.prixHT == null && row.prixTTC != null) {
+            row.prixHT = row.prixTTC;
+          }
+          return row;
         });
       }
     });

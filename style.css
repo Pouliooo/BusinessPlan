@@ -439,6 +439,24 @@ body {
   background: var(--surface);
 }
 
+/* Bouton Plan dans la toolbar */
+.btn-toolbar-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-dark);
+  color: var(--text);
+  padding: 7px 16px;
+  border-radius: var(--radius);
+  font-size: .83rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition);
+}
+.btn-toolbar-plan:hover { background: #f1f5f9; border-color: var(--primary); color: var(--primary); }
+
 /* Bouton sauvegarde détail */
 .btn-detail-save {
   display: inline-flex;
@@ -593,6 +611,14 @@ td.col-total {
 .badge-bonus            { background: #ede9fe; color: #5b21b6; }
 .badge-compare,
 .badge-compar           { background: #e0f2fe; color: #0c4a6e; }
+.badge-ossature         { background: #fef9c3; color: #713f12; }
+.badge-logiciel         { background: #dbeafe; color: #1e3a8a; }
+.badge-electronique,
+.badge-electro          { background: #fce7f3; color: #9d174d; }
+.badge-optique          { background: #e0f2fe; color: #0c4a6e; }
+.badge-impression       { background: #dcfce7; color: #14532d; }
+.badge-accessoire       { background: #f3e8ff; color: #581c87; }
+.badge-eclairage        { background: #fff7ed; color: #7c2d12; }
 
 /* ── Rating bar ─────────────────────────────────────────────── */
 .rating-bar { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -1011,10 +1037,34 @@ td.col-total {
 .unit-stat-value.warn { color: var(--accent-orange); }
 
 /* Bouton "Voir les équipements" */
+.unit-actions-bar {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.btn-unit-plan {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--primary);
+  padding: 8px 14px;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.btn-unit-plan:hover { background: #f1f5f9; }
+.plan-count { font-size: .7rem; background: var(--primary); color: #fff; border-radius: 10px; padding: 1px 6px; }
 .unit-expand-bar {
   border-top: 1px solid var(--border);
   text-align: center;
   background: var(--surface);
+  flex: 1;
 }
 .unit-expand-btn {
   background: none;
@@ -1335,6 +1385,136 @@ td.col-total {
   justify-content: flex-end;
 }
 
+/* ── Lightbox plan ───────────────────────────────── */
+#plan-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#plan-lightbox.hidden { display: none; }
+.lb-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.82);
+}
+.lb-img {
+  position: relative;
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.6);
+}
+.lb-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  background: rgba(255,255,255,.15);
+  border: none;
+  color: #fff;
+  font-size: 1.4rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lb-close:hover { background: rgba(255,255,255,.3); }
+
+/* ── Section Plan dans le tab Détail ─────────────── */
+.plan-tab-section {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+.plan-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg, #f8fafc);
+  border-bottom: 1px solid var(--border);
+}
+.plan-tab-title {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--text);
+}
+.plan-tab-actions {
+  display: flex;
+  gap: 8px;
+}
+.plan-tab-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.plan-tab-img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  background: #f8fafc;
+  display: block;
+  cursor: zoom-in;
+  transition: opacity .15s;
+}
+.plan-tab-img:hover { opacity: .85; }
+
+/* ── Galerie Plan ─────────────────────────────────── */
+.plan-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+.plan-empty {
+  color: var(--text-muted);
+  font-size: .88rem;
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 24px 0;
+}
+.plan-photo-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+.plan-photo-img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  background: #f8fafc;
+  display: block;
+  cursor: zoom-in;
+  transition: opacity .15s;
+}
+.plan-photo-img:hover { opacity: .85; }
+.plan-photo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  gap: 6px;
+}
+.plan-photo-name {
+  font-size: .75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
 /* Inputs dans la modale */
 .modal-input {
   width: 100%;
@@ -1474,6 +1654,22 @@ tr.row-add td { padding: 5px 10px !important; border-top: 1px dashed var(--borde
 
 /* Ligne calculée (ex : assurance multirisque) */
 tr.row-computed td { font-style: italic; color: var(--text-muted); background: #f8fafc; }
+
+/* Groupes tag */
+tr.group-header-row {
+  background: #f1f5f9;
+  cursor: pointer;
+  user-select: none;
+}
+tr.group-header-row:hover { background: #e2e8f0; }
+tr.group-header-row td { border-top: 2px solid var(--border-dark); padding: 8px 12px; }
+.group-summary-label { color: var(--text-muted); font-size: .85rem; }
+.group-toggle-icon { font-size: .7rem; color: var(--primary-light); margin-left: 4px; }
+.group-names { color: var(--text-muted); font-size: .82rem; font-style: italic; }
+.group-summary-total { font-weight: 700; color: var(--primary); }
+tr.group-child-row td { background: #fafbfc; padding-left: 24px !important; }
+tr.group-child-row:last-of-type td { border-bottom: 2px solid var(--border-dark); }
+.group-child-tag { width: 0; padding: 0 !important; }
 
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE

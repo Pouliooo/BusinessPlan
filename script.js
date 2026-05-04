@@ -53,11 +53,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSave();
   initHistoryPanel();
 
-  // Rendu initial
+  // Rendu initial (avec l'onglet par défaut)
   renderTable();
   renderSummary();
   renderUnits();
   renderSimulator();
+
+  // Navigation URL — après le rendu initial
+  applyHash();
+  if (!location.hash) updateHash();
+
+  window.addEventListener('popstate', () => { applyHash(); renderTable(); renderSummary(); });
 });
 
 
@@ -72,7 +78,7 @@ function initNavigation() {
   });
 }
 
-function switchPage(page) {
+function switchPage(page, skipHash = false) {
   state.page = page;
   document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
   document.getElementById(`page-${page}`).classList.remove('hidden');
@@ -81,6 +87,8 @@ function switchPage(page) {
     b.classList.toggle('active', b.dataset.page === page);
     b.setAttribute('aria-current', b.dataset.page === page ? 'page' : 'false');
   });
+
+  if (!skipHash) updateHash();
 }
 
 
@@ -98,7 +106,7 @@ function bindStaticTabs() {
   });
 }
 
-function switchTab(tabKey) {
+function switchTab(tabKey, skipHash = false) {
   state.tab  = tabKey;
   state.sort = { col: null, dir: 'asc' };
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b => {
@@ -106,7 +114,30 @@ function switchTab(tabKey) {
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  if (!skipHash) updateHash();
   renderTable();
+}
+
+function updateHash() {
+  const hash = state.page === 'resume'
+    ? '#resume'
+    : `#detail/${state.tab}`;
+  history.replaceState(null, '', hash);
+}
+
+function applyHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  const parts = hash.split('/');
+  if (parts[0] === 'resume') {
+    switchPage('resume', true);
+  } else if (parts[0] === 'detail') {
+    switchPage('detail', true);
+    const tabKey = parts[1];
+    if (tabKey && (TAB_MAP[tabKey] !== undefined || document.querySelector(`.tab-btn[data-tab="${tabKey}"]`))) {
+      switchTab(tabKey, true);
+    }
+  }
 }
 
 function initTabNewForm() {

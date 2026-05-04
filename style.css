@@ -1657,17 +1657,52 @@ tr.row-computed td { font-style: italic; color: var(--text-muted); background: #
 
 /* Groupes tag */
 tr.group-header-row {
-  background: #f1f5f9;
+  background: #e8edf5;
   cursor: pointer;
   user-select: none;
 }
-tr.group-header-row:hover { background: #e2e8f0; }
-tr.group-header-row td { border-top: 2px solid var(--border-dark); padding: 8px 12px; }
+tr.group-header-row:hover { background: #d8e2f0; }
+tr.group-header-row.group-expanded.badge-structure    { background: #e0f2fe; }
+tr.group-header-row.group-expanded.badge-ossature     { background: #fef9c3; }
+tr.group-header-row.group-expanded.badge-logiciel     { background: #dbeafe; }
+tr.group-header-row.group-expanded.badge-electronique,
+tr.group-header-row.group-expanded.badge-electro      { background: #fce7f3; }
+tr.group-header-row.group-expanded.badge-optique      { background: #e0f2fe; }
+tr.group-header-row.group-expanded.badge-impression   { background: #dcfce7; }
+tr.group-header-row.group-expanded.badge-accessoire   { background: #f3e8ff; }
+tr.group-header-row.group-expanded.badge-eclairage    { background: #fff7ed; }
+tr.group-header-row td {
+  border-top: 2px solid var(--border-dark);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  font-weight: 600;
+}
 .group-summary-label { color: var(--text-muted); font-size: .85rem; }
-.group-toggle-icon { font-size: .7rem; color: var(--primary-light); margin-left: 4px; }
+.group-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+  font-size: .65rem;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 .group-names { color: var(--text-muted); font-size: .82rem; font-style: italic; }
 .group-summary-total { font-weight: 700; color: var(--primary); }
+.badge-structure { background: #e0f2fe; color: #0369a1; font-weight: 700; }
 tr.group-child-row td { background: #fafbfc; padding-left: 24px !important; }
+tr.group-child-row.badge-structure    td { background: #f0f9ff; }
+tr.group-child-row.badge-ossature     td { background: #fefce8; }
+tr.group-child-row.badge-logiciel     td { background: #eff6ff; }
+tr.group-child-row.badge-electronique td,
+tr.group-child-row.badge-electro      td { background: #fdf2f8; }
+tr.group-child-row.badge-optique      td { background: #f0f9ff; }
+tr.group-child-row.badge-impression   td { background: #f0fdf4; }
+tr.group-child-row.badge-accessoire   td { background: #faf5ff; }
+tr.group-child-row.badge-eclairage    td { background: #fff8f1; }
 tr.group-child-row:last-of-type td { border-bottom: 2px solid var(--border-dark); }
 .group-child-tag { width: 0; padding: 0 !important; }
 

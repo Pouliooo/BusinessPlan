@@ -590,26 +590,33 @@ function openLightbox(src) {
 }
 
 function renderPlanSectionHTML(type) {
-  const photos = state.planPhotos[type] || [];
+  const isStatic = type === 'photobooth';
+  const photos   = isStatic ? PHOTOBOOTH_STATIC_PHOTOS : (state.planPhotos[type] || []);
+
+  const actions = isStatic ? '' : `
+    <div class="plan-tab-actions">
+      <input type="file" class="plan-file-input" accept="image/*" multiple style="display:none">
+      <button class="btn-secondary btn-sm btn-plan-add-file">📁 Ajouter fichier</button>
+      <button class="btn-secondary btn-sm btn-plan-add-url">🔗 URL</button>
+    </div>`;
+
+  const cards = photos.map((p, i) => `
+    <div class="plan-photo-card">
+      <img src="${escHtml(p.src)}" alt="${escHtml(p.name||'')}" class="plan-tab-img" />
+      <div class="plan-photo-bar">
+        <span class="plan-photo-name">${escHtml(p.name||`Photo ${i+1}`)}</span>
+        ${isStatic ? '' : `<button class="btn-danger plan-tab-del" data-idx="${i}">✕</button>`}
+      </div>
+    </div>`).join('');
+
   return `
     <div class="plan-tab-header">
       <span class="plan-tab-title">📋 Plan & Photos</span>
-      <div class="plan-tab-actions">
-        <input type="file" class="plan-file-input" accept="image/*" multiple style="display:none">
-        <button class="btn-secondary btn-sm btn-plan-add-file">📁 Ajouter fichier</button>
-        <button class="btn-secondary btn-sm btn-plan-add-url">🔗 URL</button>
-      </div>
+      ${actions}
     </div>
     <div class="plan-tab-gallery">
       ${photos.length === 0 ? '<p class="plan-empty">Aucune photo. Ajoutez un fichier ou une URL.</p>' : ''}
-      ${photos.map((p, i) => `
-        <div class="plan-photo-card">
-          <img src="${escHtml(p.src)}" alt="${escHtml(p.name||'')}" class="plan-tab-img" />
-          <div class="plan-photo-bar">
-            <span class="plan-photo-name">${escHtml(p.name||`Photo ${i+1}`)}</span>
-            <button class="btn-danger plan-tab-del" data-idx="${i}">✕</button>
-          </div>
-        </div>`).join('')}
+      ${cards}
     </div>
   `;
 }
@@ -647,11 +654,12 @@ function buildTableHTML(dataset, rows, datasetKey) {
   columns.forEach(col => {
     const active = state.sort.col === col.key;
     const icon   = active ? (state.sort.dir === 'asc' ? '▲' : '▼') : '⇅';
-    const cls    = [active ? `sort-${state.sort.dir}` : '', (col.compute || col.isTotal) ? 'col-total' : ''].filter(Boolean).join(' ');
+    const cls    = [active ? `sort-${state.sort.dir}` : '', (col.compute || col.isTotal) ? 'col-total' : '', col.thClass || ''].filter(Boolean).join(' ');
     // Datasets sans prixHT : prixTTC est édité en HT → relibellé
     let label = col.label;
     if (col.key === 'prixTTC' && !hasHT) label = label.replace('TTC', 'HT');
-    html += `<th data-col="${escHtml(col.key)}" class="${cls}">
+    const widthAttr = col.thWidth ? ` style="width:${col.thWidth}"` : '';
+    html += `<th data-col="${escHtml(col.key)}" class="${cls}"${widthAttr}>
                ${escHtml(label)} <span class="sort-icon">${icon}</span>
              </th>`;
   });
@@ -695,10 +703,7 @@ function buildTableHTML(dataset, rows, datasetKey) {
       }
     });
 
-    // Lignes sans tag — rendues normalement
-    noTag.forEach(row => { html += buildRowHTML(row); });
-
-    // Groupes
+    // Groupes d'abord
     const totalCol = columns.find(c => c.isTotal) || columns.find(c => c.type === 'price' && c.key !== 'tag');
     groups.forEach((groupRows, tag) => {
       const gKey      = `${datasetKey}:${tag}`;
@@ -717,7 +722,7 @@ function buildTableHTML(dataset, rows, datasetKey) {
       const nameSpan = names ? `<span class="group-names">${escHtml(names)}</span>` : '';
 
       // Ligne résumé du groupe (toujours affichée)
-      html += `<tr class="group-header-row ${collapsed ? 'group-collapsed' : 'group-expanded'}"
+      html += `<tr class="group-header-row ${collapsed ? 'group-collapsed' : `group-expanded ${badgeCls(tag)}`}"
                    data-group-key="${escHtml(gKey)}" data-group-tag="${escHtml(tag)}">
         <td><span class="badge ${badgeCls(tag)}">${escHtml(tag)}</span> <span class="group-toggle-icon">${collapsed ? '▶' : '▼'}</span></td>
         <td colspan="${colSpan - 2}" class="group-summary-label">
@@ -733,7 +738,8 @@ function buildTableHTML(dataset, rows, datasetKey) {
           // Masquer la cellule tag dans les lignes enfant (déjà visible dans le header)
           const origIdx    = dataset.rows.indexOf(row);
           const isComputed = !!row.computed;
-          let r = `<tr class="group-child-row" data-row-idx="${origIdx}"${isComputed ? ' class="row-computed"' : ''}>`;
+          let r = `<tr class="group-child-row ${badgeCls(tag)}" data-row-idx="${origIdx}">`;
+
           columns.forEach(col => {
             r += col.key === 'tag'
               ? `<td class="text-cell cell-readonly group-child-tag"></td>`
@@ -749,6 +755,8 @@ function buildTableHTML(dataset, rows, datasetKey) {
         });
       }
     });
+    // Lignes sans tag après les groupes
+    noTag.forEach(row => { html += buildRowHTML(row); });
   } else {
     rows.forEach(row => { html += buildRowHTML(row); });
   }
@@ -828,7 +836,7 @@ function buildFooterHTML(dataset, rows) {
   let html = '<tfoot><tr>';
   columns.forEach((col, i) => {
     if (i === 0) { html += '<td><strong>Total</strong></td>'; return; }
-    if (col.type !== 'price') { html += '<td></td>'; return; }
+    if (col.type !== 'price' || col.noTotal) { html += '<td></td>'; return; }
 
     const htToTtc = col.key === 'prixTTC' && !hasHT;
     // Colonnes calculées (col.compute) → toujours dynamique
@@ -2210,17 +2218,15 @@ function buildSnapshot() {
   };
 }
 
-const DEFAULT_PHOTOBOOTH_PHOTOS = [
-  { src: 'image/photobooth_plan2d.png',  name: 'Plan 2D — Pièces à découper', _default: true },
-  { src: 'image/photobooth_photo.jpg',   name: 'Rendu photobooth',             _default: true }
+const PHOTOBOOTH_STATIC_PHOTOS = [
+  { src: 'image/photobooth_schema.png',  name: 'Schéma électrique',       _static: true },
+  { src: 'image/photobooth_plan2d.png',  name: 'Plan 2D — Pièces à découper', _static: true },
+  { src: 'image/photobooth_photo.png',   name: 'Rendu photobooth',         _static: true }
 ];
 
 function applyDefaultPlanPhotos() {
-  if (!state.planPhotos.photobooth) state.planPhotos.photobooth = [];
-  DEFAULT_PHOTOBOOTH_PHOTOS.forEach(def => {
-    const already = state.planPhotos.photobooth.some(p => p.src === def.src || p._default && p.name === def.name);
-    if (!already) state.planPhotos.photobooth.unshift({ ...def });
-  });
+  // Les photos statiques photobooth sont toujours affichées depuis PHOTOBOOTH_STATIC_PHOTOS
+  // elles ne sont pas dans state.planPhotos
 }
 
 function applySnapshot(snap) {
@@ -2230,9 +2236,13 @@ function applySnapshot(snap) {
     state.photoboothUnits = snap.photoboothUnits;
   if (snap.customUnits && typeof snap.customUnits === 'object')
     state.customUnits = snap.customUnits;
-  if (snap.planPhotos && typeof snap.planPhotos === 'object')
+  if (snap.planPhotos && typeof snap.planPhotos === 'object') {
     state.planPhotos = snap.planPhotos;
-  applyDefaultPlanPhotos();
+    // nettoyer les anciennes entrées _default avec des chemins locaux inexistants
+    Object.keys(state.planPhotos).forEach(k => {
+      state.planPhotos[k] = (state.planPhotos[k] || []).filter(p => !p._default);
+    });
+  }
   if (Array.isArray(snap.customBlocks))
     state.customBlocks    = snap.customBlocks;
 
@@ -2326,15 +2336,27 @@ async function loadFromAPI() {
   }
 }
 
-/** Écrit _nptData vers jsonbin (fire-and-forget) */
+/** Écrit _nptData vers jsonbin — planPhotos exclus (trop lourd pour le cloud) */
 function flushToAPI() {
+  const stripPhotos = snap => {
+    if (!snap) return snap;
+    const { planPhotos, ...rest } = snap;
+    return rest;
+  };
+  const payload = {
+    current: stripPhotos(_nptData.current),
+    history: (_nptData.history || []).map(e => ({
+      ...e,
+      snap: stripPhotos(e.snap)
+    }))
+  };
   fetch(JSONBIN_URL, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       'X-Master-Key': JSONBIN_KEY
     },
-    body: JSON.stringify(_nptData)
+    body: JSON.stringify(payload)
   })
   .then(res => {
     if (!res.ok) showToast(`⚠ jsonbin erreur ${res.status}`);
